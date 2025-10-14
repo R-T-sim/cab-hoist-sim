@@ -1,0 +1,109 @@
+<!doctype html>
+const ax = u - ccart * v_; // cart accel
+const ath = - (g/L) * Math.sin(th_) - ctheta * om_ - (ax/L) * Math.cos(th_);
+return [v_, ax, om_, ath];
+};
+
+
+let s0=[x,v,theta,omega];
+let k1=f(s0);
+let s1=s0.map((si,i)=>si+0.5*dt*k1[i]); let k2=f(s1);
+let s2=s0.map((si,i)=>si+0.5*dt*k2[i]); let k3=f(s2);
+let s3=s0.map((si,i)=>si+ dt*k3[i]); let k4=f(s3);
+
+
+x += dt*(k1[0]+2*k2[0]+2*k3[0]+k4[0])/6;
+v += dt*(k1[1]+2*k2[1]+2*k3[1]+k4[1])/6;
+theta += dt*(k1[2]+2*k2[2]+2*k3[2]+k4[2])/6;
+omega += dt*(k1[3]+2*k2[3]+2*k3[3]+k4[3])/6;
+
+
+t += dt;
+}
+
+
+function draw(){
+const W = cv.width, H = cv.height;
+ctx.clearRect(0,0,W,H);
+
+
+// World scale
+const ppm = 120; // pixels per meter
+
+
+// Convert world to screen
+const origin = {x: W*0.15, y: H*0.15};
+const railY = origin.y + 20;
+
+
+// Grid
+ctx.save();
+ctx.strokeStyle = '#1b2445';
+ctx.lineWidth = 1;
+const grid = 40;
+for(let gx=0; gx<W; gx+=grid){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
+for(let gy=0; gy<H; gy+=grid){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
+ctx.restore();
+
+
+// Cart position in pixels
+const cartX = origin.x + x*ppm;
+
+
+// Draw rail
+ctx.strokeStyle = '#2a3a6a';
+ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, railY); ctx.lineTo(W, railY); ctx.stroke();
+
+
+// Draw trolley (hoist)
+ctx.fillStyle = '#4ea1ff';
+const trolleyW=60, trolleyH=28;
+ctx.fillRect(cartX - trolleyW/2, railY - trolleyH, trolleyW, trolleyH);
+
+
+// Rope
+const px = cartX; const py = railY;
+const massX = px + L*Math.sin(theta)*ppm;
+const massY = py + L*Math.cos(theta)*ppm;
+ctx.strokeStyle = '#89b7ff'; ctx.lineWidth=3;
+ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(massX, massY); ctx.stroke();
+
+
+// CAB body (rectangle)
+const cabW = 120, cabH = 60;
+ctx.save();
+ctx.translate(massX, massY);
+ctx.rotate(theta);
+ctx.fillStyle = '#e8eef9';
+ctx.fillRect(-cabW/2, -cabH/2, cabW, cabH);
+// hook
+ctx.fillStyle = '#ffd166';
+ctx.fillRect(-8, -cabH/2-12, 16, 12);
+ctx.restore();
+
+
+// Readout
+readout.textContent = `t=${t.toFixed(2)} s\n`+
+`xᵗ=${x.toFixed(2)} m vᵗ=${v.toFixed(2)} m/s\n`+
+`θ=${theta.toFixed(3)} rad ω=${omega.toFixed(3)} rad/s`;
+}
+
+
+// Main loop
+let acc = 0; // accumulator to run physics at fixed dt
+let last = performance.now();
+function loop(now){
+const elapsed = (now - last)/1000; last = now; if(!paused){
+acc += Math.min(elapsed, 0.1);
+while(acc >= dt){ step(); acc -= dt; }
+}
+draw();
+requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+
+})();
+</script>
+</body>
+</html>
