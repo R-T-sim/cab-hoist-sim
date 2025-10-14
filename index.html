@@ -105,13 +105,17 @@ function resize(){
   };
 
   function el(id, lbl, setter, fmt){
-    const s = document.getElementById(id);
-    const l = document.getElementById(lbl);
-    const apply = ()=>{ setter(s.value); l.textContent = fmt ? fmt(s.value) : s.value; };
-    s.addEventListener('input', apply); apply();
-    return {s,l};
-  }
-
+  const s = document.getElementById(id);
+  const l = document.getElementById(lbl);
+  const apply = ()=>{
+    const num = parseFloat(s.value);       // ←ここで文字列→数値に変換
+    setter(num);
+    l.textContent = fmt ? fmt(num) : num;  // ←fmtにも数値を渡す
+  };
+  s.addEventListener('input', apply);
+  apply();
+  return {s,l};
+}
   // Controls
   const readout = document.getElementById('readout');
   const btnReset = document.getElementById('reset');
