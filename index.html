@@ -63,11 +63,20 @@
   const ctx = cv.getContext('2d');
   const DPR = Math.max(1, window.devicePixelRatio || 1);
 
-  function resize(){
-    const r = cv.getBoundingClientRect();
-    cv.width = Math.floor(r.width * DPR);
-    cv.height = Math.floor(r.height * DPR);
+function resize(){
+  // 親の表示サイズから確実に拾う
+  const r = cv.getBoundingClientRect();
+
+  // 初回レイアウト前だと 0 になることがあるので保険をかける
+  let w = Math.max(2, Math.floor(r.width  * DPR));
+  let h = Math.max(2, Math.floor(r.height * DPR));
+
+  // 直前と違うときだけ更新（無限再描画を避ける）
+  if (cv.width !== w || cv.height !== h) {
+    cv.width = w;
+    cv.height = h;
   }
+}
   window.addEventListener('resize', resize); resize();
 
   // Parameters (SI units)
@@ -220,14 +229,19 @@
   // Main loop
   let acc = 0; // accumulator to run physics at fixed dt
   let last = performance.now();
-  function loop(now){
-    const elapsed = (now - last)/1000; last = now; if(!paused){
-      acc += Math.min(elapsed, 0.1);
-      while(acc >= dt){ step(); acc -= dt; }
-    }
-    draw();
-    requestAnimationFrame(loop);
+function loop(now){
+  const elapsed = (now - last)/1000; last = now;
+
+  // ← 追加：描画前に必ずキャンバスサイズを確定
+  resize();
+
+  if(!paused){
+    acc += Math.min(elapsed, 0.1);
+    while(acc >= dt){ step(); acc -= dt; }
   }
+  draw();
+  requestAnimationFrame(loop);
+}
   requestAnimationFrame(loop);
 
 })();
