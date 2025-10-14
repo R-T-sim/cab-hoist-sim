@@ -1,109 +1,237 @@
 <!doctype html>
-const ax = u - ccart * v_; // cart accel
-const ath = - (g/L) * Math.sin(th_) - ctheta * om_ - (ax/L) * Math.cos(th_);
-return [v_, ax, om_, ath];
-};
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CAB 2D Hoist Simulation</title>
+  <style>
+    :root { --bg:#0b1020; --fg:#e8eef9; --muted:#9fb3d9; --card:#121a33; --accent:#4ea1ff; }
+    html,body{height:100%;}
+    body{margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;}
+    .wrap{display:grid; grid-template-columns: 340px 1fr; gap:14px; height:100%; padding:14px; box-sizing:border-box;}
+    .card{background:var(--card); border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);}
+    .panel{padding:14px 14px 8px; display:flex; flex-direction:column; gap:10px;}
+    h1{font-size:18px; margin:0 0 6px; color:var(--fg);} 
+    .sub{color:var(--muted); font-size:12px;}
+    .row{display:flex; align-items:center; gap:8px;}
+    .row label{min-width:120px; font-size:12px; color:var(--muted);} 
+    input[type=range]{width:100%;}
+    .kbd{display:inline-block; padding:2px 8px; border-radius:8px; background:#10172a; border:1px solid #1d2744; font-size:12px; color:var(--muted)}
+    .btn{background:linear-gradient(180deg, #3a76ff, #2b59d9); border:none; color:white; border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:600}
+    .btn.secondary{background:#19254a; color:var(--fg); border:1px solid #2a3a6a}
+    canvas{width:100%; height:100%; display:block;}
+    .legend{font-size:12px; color:var(--muted)}
+    .grid{stroke:#1b2445}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Controls -->
+    <div class="card panel">
+      <div>
+        <h1>CAB 2D Hoist Simulation</h1>
+        <div class="sub">左右移動するホイストに吊られたCABの振れ挙動（2D）</div>
+      </div>
 
+      <div class="row"><label>ロープ長 L [m]</label><input id="L" type="range" min="0.5" max="5" step="0.01" value="2.0"><span id="Lval">2.00</span></div>
+      <div class="row"><label>重力 g [m/s²]</label><input id="g" type="range" min="0" max="20" step="0.1" value="9.8"><span id="gval">9.8</span></div>
+      <div class="row"><label>角減衰 cθ [1/s]</label><input id="damp" type="range" min="0" max="1.0" step="0.01" value="0.05"><span id="dampval">0.05</span></div>
+      <div class="row"><label>台車加速度 a_cmd</label><input id="acmd" type="range" min="0" max="5" step="0.1" value="2.0"><span id="acmdval">2.0 m/s²</span></div>
+      <div class="row"><label>台車粘性 cᵗ [N·s/kg]</label><input id="cd" type="range" min="0" max="3" step="0.05" value="0.4"><span id="cdval">0.40</span></div>
 
-let s0=[x,v,theta,omega];
-let k1=f(s0);
-let s1=s0.map((si,i)=>si+0.5*dt*k1[i]); let k2=f(s1);
-let s2=s0.map((si,i)=>si+0.5*dt*k2[i]); let k3=f(s2);
-let s3=s0.map((si,i)=>si+ dt*k3[i]); let k4=f(s3);
+      <div class="row" style="gap:12px; margin-top:6px; flex-wrap:wrap">
+        <button class="btn" id="reset">リセット</button>
+        <button class="btn secondary" id="pause">一時停止</button>
+      </div>
 
+      <div class="legend" style="margin-top:8px">
+        操作：<span class="kbd">←</span><span class="kbd">→</span> = 台車加速/減速、<span class="kbd">Space</span> = ブレーキ、<span class="kbd">R</span> = 原点へ、<span class="kbd">P</span> = 一時停止
+      </div>
+      <div class="legend">出力（SI）：xᵗ=台車位置 [m] ／ θ=吊り角 [rad] ／ ω=角速度 [rad/s]</div>
+      <pre id="readout" class="legend" style="background:#0e152e; padding:8px; border-radius:10px; white-space:pre-wrap"></pre>
+    </div>
 
-x += dt*(k1[0]+2*k2[0]+2*k3[0]+k4[0])/6;
-v += dt*(k1[1]+2*k2[1]+2*k3[1]+k4[1])/6;
-theta += dt*(k1[2]+2*k2[2]+2*k3[2]+k4[2])/6;
-omega += dt*(k1[3]+2*k2[3]+2*k3[3]+k4[3])/6;
+    <!-- Canvas -->
+    <div class="card" style="position:relative; overflow:hidden">
+      <canvas id="cv"></canvas>
+    </div>
+  </div>
 
+<script>
+(function(){
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const DPR = Math.max(1, window.devicePixelRatio || 1);
 
-t += dt;
-}
+  function resize(){
+    const r = cv.getBoundingClientRect();
+    cv.width = Math.floor(r.width * DPR);
+    cv.height = Math.floor(r.height * DPR);
+  }
+  window.addEventListener('resize', resize); resize();
 
+  // Parameters (SI units)
+  let L = 2.0;           // rope length [m]
+  let g = 9.8;           // gravity [m/s^2]
+  let ctheta = 0.05;     // angular damping [1/s]
+  let cmdAcc = 2.0;      // commanded cart acceleration magnitude [m/s^2]
+  let ccart = 0.4;       // cart viscous damping (per unit mass)
 
-function draw(){
-const W = cv.width, H = cv.height;
-ctx.clearRect(0,0,W,H);
+  // State variables
+  let t = 0, dt = 1/240; // physics timestep
+  let x = 0, v = 0;      // cart pos, vel [m]
+  let theta = 0.0;       // pendulum angle (0=vertical), positive to right [rad]
+  let omega = 0.0;       // angular velocity [rad/s]
 
+  // Input
+  let keyLeft=false, keyRight=false, brake=false;
 
-// World scale
-const ppm = 120; // pixels per meter
+  // UI elements
+  const ui = {
+    L: el('L','Lval',v=>L=+v, v=>v.toFixed(2)),
+    g: el('g','gval',v=>g=+v, v=>(+v).toFixed(1)),
+    damp: el('damp','dampval',v=>ctheta=+v, v=>(+v).toFixed(2)),
+    acmd: el('acmd','acmdval',v=>cmdAcc=+v, v=>v+" m/s²"),
+    cd: el('cd','cdval',v=>ccart=+v, v=>(+v).toFixed(2))
+  };
 
+  function el(id, lbl, setter, fmt){
+    const s = document.getElementById(id);
+    const l = document.getElementById(lbl);
+    const apply = ()=>{ setter(s.value); l.textContent = fmt ? fmt(s.value) : s.value; };
+    s.addEventListener('input', apply); apply();
+    return {s,l};
+  }
 
-// Convert world to screen
-const origin = {x: W*0.15, y: H*0.15};
-const railY = origin.y + 20;
+  // Controls
+  const readout = document.getElementById('readout');
+  const btnReset = document.getElementById('reset');
+  const btnPause = document.getElementById('pause');
+  let paused = false;
 
+  btnReset.addEventListener('click', ()=> reset());
+  btnPause.addEventListener('click', ()=>{ paused = !paused; btnPause.textContent = paused? '再開' : '一時停止';});
 
-// Grid
-ctx.save();
-ctx.strokeStyle = '#1b2445';
-ctx.lineWidth = 1;
-const grid = 40;
-for(let gx=0; gx<W; gx+=grid){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
-for(let gy=0; gy<H; gy+=grid){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
-ctx.restore();
+  window.addEventListener('keydown', (e)=>{
+    if(e.code==='ArrowLeft') keyLeft = true;
+    if(e.code==='ArrowRight') keyRight = true;
+    if(e.code==='Space') brake = true;
+    if(e.key==='r' || e.key==='R') reset();
+    if(e.key==='p' || e.key==='P') { paused=!paused; btnPause.textContent = paused? '再開' : '一時停止'; }
+  });
+  window.addEventListener('keyup', (e)=>{
+    if(e.code==='ArrowLeft') keyLeft = false;
+    if(e.code==='ArrowRight') keyRight = false;
+    if(e.code==='Space') brake = false;
+  });
 
+  function reset(){
+    x = 0; v = 0; theta = 0.0; omega = 0.0; t = 0; paused=false; btnPause.textContent='一時停止';
+  }
 
-// Cart position in pixels
-const cartX = origin.x + x*ppm;
+  // Dynamics: theta¨ + (g/L) sinθ + cθ θ˙ = -(x¨/L) cosθ
+  // Cart: x¨ = u - ccart * v  (u from keys), optional brake to zero vel
+  function step(){
+    // Input accel command
+    let u = 0;
+    if(keyLeft) u -= cmdAcc;
+    if(keyRight) u += cmdAcc;
+    if(brake) u += -3*v; // crude braking term driving v to 0
 
+    // Integrate with RK4 for (x,v,theta,omega)
+    const f = (st)=>{
+      const [x_, v_, th_, om_] = st;
+      const ax = u - ccart * v_; // cart accel
+      const ath = - (g/L) * Math.sin(th_) - ctheta * om_ - (ax/L) * Math.cos(th_);
+      return [v_, ax, om_, ath];
+    };
 
-// Draw rail
-ctx.strokeStyle = '#2a3a6a';
-ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, railY); ctx.lineTo(W, railY); ctx.stroke();
+    let s0=[x,v,theta,omega];
+    let k1=f(s0);
+    let s1=s0.map((si,i)=>si+0.5*dt*k1[i]); let k2=f(s1);
+    let s2=s0.map((si,i)=>si+0.5*dt*k2[i]); let k3=f(s2);
+    let s3=s0.map((si,i)=>si+ dt*k3[i]);   let k4=f(s3);
 
+    x     += dt*(k1[0]+2*k2[0]+2*k3[0]+k4[0])/6;
+    v     += dt*(k1[1]+2*k2[1]+2*k3[1]+k4[1])/6;
+    theta += dt*(k1[2]+2*k2[2]+2*k3[2]+k4[2])/6;
+    omega += dt*(k1[3]+2*k2[3]+2*k3[3]+k4[3])/6;
 
-// Draw trolley (hoist)
-ctx.fillStyle = '#4ea1ff';
-const trolleyW=60, trolleyH=28;
-ctx.fillRect(cartX - trolleyW/2, railY - trolleyH, trolleyW, trolleyH);
+    t += dt;
+  }
 
+  function draw(){
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0,0,W,H);
 
-// Rope
-const px = cartX; const py = railY;
-const massX = px + L*Math.sin(theta)*ppm;
-const massY = py + L*Math.cos(theta)*ppm;
-ctx.strokeStyle = '#89b7ff'; ctx.lineWidth=3;
-ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(massX, massY); ctx.stroke();
+    // World scale
+    const ppm = 120; // pixels per meter
 
+    // Convert world to screen
+    const origin = {x: W*0.15, y: H*0.15};
+    const railY = origin.y + 20;
 
-// CAB body (rectangle)
-const cabW = 120, cabH = 60;
-ctx.save();
-ctx.translate(massX, massY);
-ctx.rotate(theta);
-ctx.fillStyle = '#e8eef9';
-ctx.fillRect(-cabW/2, -cabH/2, cabW, cabH);
-// hook
-ctx.fillStyle = '#ffd166';
-ctx.fillRect(-8, -cabH/2-12, 16, 12);
-ctx.restore();
+    // Grid
+    ctx.save();
+    ctx.strokeStyle = '#1b2445';
+    ctx.lineWidth = 1;
+    const grid = 40; 
+    for(let gx=0; gx<W; gx+=grid){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
+    for(let gy=0; gy<H; gy+=grid){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
+    ctx.restore();
 
+    // Cart position in pixels
+    const cartX = origin.x + x*ppm;
 
-// Readout
-readout.textContent = `t=${t.toFixed(2)} s\n`+
-`xᵗ=${x.toFixed(2)} m vᵗ=${v.toFixed(2)} m/s\n`+
-`θ=${theta.toFixed(3)} rad ω=${omega.toFixed(3)} rad/s`;
-}
+    // Draw rail
+    ctx.strokeStyle = '#2a3a6a';
+    ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, railY); ctx.lineTo(W, railY); ctx.stroke();
 
+    // Draw trolley (hoist)
+    ctx.fillStyle = '#4ea1ff';
+    const trolleyW=60, trolleyH=28;
+    ctx.fillRect(cartX - trolleyW/2, railY - trolleyH, trolleyW, trolleyH);
 
-// Main loop
-let acc = 0; // accumulator to run physics at fixed dt
-let last = performance.now();
-function loop(now){
-const elapsed = (now - last)/1000; last = now; if(!paused){
-acc += Math.min(elapsed, 0.1);
-while(acc >= dt){ step(); acc -= dt; }
-}
-draw();
-requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
+    // Rope
+    const px = cartX; const py = railY;
+    const massX = px + L*Math.sin(theta)*ppm;
+    const massY = py + L*Math.cos(theta)*ppm;
+    ctx.strokeStyle = '#89b7ff'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(massX, massY); ctx.stroke();
 
+    // CAB body (rectangle)
+    const cabW = 120, cabH = 60;
+    ctx.save();
+    ctx.translate(massX, massY);
+    ctx.rotate(theta);
+    ctx.fillStyle = '#e8eef9';
+    ctx.fillRect(-cabW/2, -cabH/2, cabW, cabH);
+    // hook
+    ctx.fillStyle = '#ffd166';
+    ctx.fillRect(-8, -cabH/2-12, 16, 12);
+    ctx.restore();
+
+    // Readout
+    readout.textContent = `t=${t.toFixed(2)} s\n`+
+      `xᵗ=${x.toFixed(2)} m  vᵗ=${v.toFixed(2)} m/s\n`+
+      `θ=${theta.toFixed(3)} rad  ω=${omega.toFixed(3)} rad/s`;
+  }
+
+  // Main loop
+  let acc = 0; // accumulator to run physics at fixed dt
+  let last = performance.now();
+  function loop(now){
+    const elapsed = (now - last)/1000; last = now; if(!paused){
+      acc += Math.min(elapsed, 0.1);
+      while(acc >= dt){ step(); acc -= dt; }
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
 
 })();
 </script>
 </body>
 </html>
+
