@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CAB 2D – mm座標／アーム受面・摩擦・速度制限（dt=1/600）</title>
+<style>
+:root{--bg:#0b1020;--fg:#e8eef9;--muted:#9fb3d9;--card:#121a33;--accent:#4ea1ff;--good:#26d07c;--arm:#ff5a5a;--cab:#7fb6ff}
+html,body{height:100%} body{margin:0;background:var(--bg);color:var(--fg);
+font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif}
+.wrap{display:grid;grid-template-columns:370px 1fr;gap:14px;height:100%;padding:14px;box-sizing:border-box}
+.card{background:var(--card);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.panel{padding:14px 14px 10px;display:flex;flex-direction:column;gap:10px}
+h1{font-size:18px;margin:0 0 6px} h2{font-size:13px;margin:8px 0 2px;color:var(--muted);font-weight:600}
+.row{display:flex;align-items:center;gap:10px} .row label{min-width:155px;font-size:12px;color:var(--muted)}
+input[type=range]{width:100%} .btn{background:linear-gradient(180deg,#3a76ff,#2b59d9);border:none;color:#fff;border-radius:12px;padding:9px 12px;cursor:pointer;font-weight:600}
+.btn.secondary{background:#19254a;color:var(--fg);border:1px solid #2a3a6a}
+.kbd{display:inline-block;padding:2px 8px;border-radius:8px;background:#10172a;border:1px solid #1d2744;font-size:12px;color:var(--muted)}
+.legend{font-size:12px;color:var(--muted)} canvas{width:100%;height:100%;display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card panel">
+    <div><h1>ホイスト（緑）＋吊具アーム（赤）＋CAB（青）</h1>
+      <div class="legend">座標：原点=フック(0,0)、X右＋/Y上＋、<b>単位=mm</b>。速度上限 0.3 m/s。</div>
+    </div>
+
+    <h2>ホイスト</h2>
+    <div class="row"><label>指令加速度 a_cmd [mm/s²]</label><input id="acmd" type="range" min="100" max="4000" step="50" value="1500"><span id="acmdv">1500</span></div>
+    <div class="row"><label>速度上限 |vᵗ|max [mm/s]</label><input id="vmax" type="range" min="50" max="600" step="10" value="300"><span id="vmaxv">300</span></div>
+    <div class="row"><label>台車粘性 cᵗ [1/s]</label><input id="cd" type="range" min="0" max="2" step="0.02" value="0.25"><span id="cdv">0.25</span></div>
+
+    <div class="row" style="gap:12px;margin-top:6px;flex-wrap:wrap">
+      <button class="btn" id="reset">リセット</button>
+      <button class="btn secondary" id="pause">一時停止</button>
+    </div>
+
+    <h2>吊具アーム（赤）</h2>
+    <div class="row"><label>アーム長 L_arm [mm]</label><input id="Larm" type="range" min="600" max="2000" step="10" value="1300"><span id="Larmv">1300</span></div>
+    <div class="row"><label>左アーム角 θL [deg]</label><input id="thL" type="range" min="180" max="270" step="1" value="270"><span id="thLv">270</span></div>
+    <div class="row"><label>右アーム角 θR [deg]</label><input id="thR" type="range" min="270" max="360" step="1" value="270"><span id="thRv">270</span></div>
+
+    <h2>接触（受面＆摩擦）</h2>
+    <div class="row"><label>受け溝深さ d [mm]<br><span class="legend">(CAB上面からの下向き距離)</span></label>
+      <input id="groove" type="range" min="10" max="200" step="5" value="80"><span id="groovev">80</span></div>
+    <div class="row"><label>摩擦係数 μ</label><input id="mu" type="range" min="0" max="1" step="0.01" value="0.30"><span id="muv">0.30</span></div>
+    <div class="row"><label>法線ばね kₙ [N/mm]</label><input id="kn" type="range" min="100" max="20000" step="100" value="4000"><span id="knv">4000</span></div>
+    <div class="row"><label>法線減衰 cₙ [N·s/mm]</label><input id="cn" type="range" min="0" max="15000" step="100" value="2500"><span id="cnv">2500</span></div>
+
+    <h2>CAB（青）</h2>
+    <div class="row"><label>質量 m [kg]</label><input id="mass" type="range" min="50" max="2000" step="10" value="400"><span id="massv">400</span></div>
+    <div class="row"><label>幅 W [mm]</label><input id="W" type="range" min="600" max="2800" step="10" value="1800"><span id="Wv">1800</span></div>
+    <div class="row"><label>高さ H [mm]</label><input id="H" type="range" min="600" max="2400" step="10" value="1200"><span id="Hv">1200</span></div>
+    <div class="row"><label>初期 重心X [mm]</label><input id="cx0" type="range" min="-2000" max="2000" step="1" value="7"><span id="cx0v">7</span></div>
+    <div class="row"><label>初期 重心Y [mm]</label><input id="cy0" type="range" min="-3000" max="500" step="1" value="-1800"><span id="cy0v">-1800</span></div>
+    <div class="row"><label>回転減衰 cφ [N·m·s/rad]</label><input id="cdphi" type="range" min="0" max="200" step="1" value="10"><span id="cdphiv">10</span></div>
+
+    <div class="legend" style="margin-top:8px">
+      操作：<span class="kbd">←</span><span class="kbd">→</span> = 台車加減速（|v|≤0.3m/s）、<span class="kbd">Space</span> = ブレーキ、<span class="kbd">P</span> = 一時停止、<span class="kbd">R</span> = リセット
+    </div>
+    <pre id="readout" class="legend" style="background:#0e152e;padding:8px;border-radius:10px;white-space:pre-wrap"></pre>
+  </div>
+
+  <div class="card" style="position:relative;overflow:hidden"><canvas id="cv"></canvas></div>
+</div>
+
+<script>
+(function(){
+  // ===== Canvas（Edge対策：毎フレーム寸法確定）=====
+  const cv=document.getElementById('cv'); const ctx=cv.getContext('2d');
+  const DPR=Math.max(1,window.devicePixelRatio||1);
+  function resize(){
+    const r=cv.getBoundingClientRect();
+    const w=Math.max(2,Math.floor(r.width*DPR));
+    const h=Math.max(2,Math.floor(r.height*DPR));
+    if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+  }
+  window.addEventListener('resize',resize); resize();
+
+  // ===== mm スケール → ピクセル換算 =====
+  function FitScale(){
+    // 画面に 6000mm 程度を収める（左右移動が見やすい倍率）
+    const W=cv.width, H=cv.height;
+    const ppm = Math.min(W/6000, H/4000); // pixel per mm
+    return Math.max(ppm, 0.08); // 下限
+  }
+
+  // ===== UI（数値化は parseFloat）=====
+  function bind(id, lab, setter, fmt){
+    const s=document.getElementById(id), l=document.getElementById(lab);
+    const apply=()=>{const v=parseFloat(s.value); setter(v); l.textContent=fmt?fmt(v):String(v);}
+    s.addEventListener('input',apply); apply(); return {s,l};
+  }
+
+  // ---- Parameters（既定）----
+  let a_cmd=1500, vmax=300, ccart=0.25;
+  let Larm=1300, thL=270, thR=270;
+  let groove=80, mu=0.30, kn=4000, cn=2500;
+  let m=400, Wmm=1800, Hmm=1200, cx0=7, cy0=-1800, cdphi=10;
+
+  bind('acmd','acmdv',v=>a_cmd=v, v=>v.toFixed(0));
+  bind('vmax','vmaxv',v=>vmax=v, v=>v.toFixed(0));
+  bind('cd','cdv',v=>ccart=v, v=>v.toFixed(2));
+
+  bind('Larm','Larmv',v=>{Larm=v;}, v=>v.toFixed(0));
+  bind('thL','thLv',v=>{thL=v;}, v=>v.toFixed(0));    // 左：180～270（ストッパ）
+  bind('thR','thRv',v=>{thR=v;}, v=>v.toFixed(0));    // 右：270～360（ストッパ）
+
+  bind('groove','groovev',v=>groove=v, v=>v.toFixed(0));
+  bind('mu','muv',v=>mu=v, v=>v.toFixed(2));
+  bind('kn','knv',v=>kn=v, v=>v.toFixed(0));
+  bind('cn','cnv',v=>cn=v, v=>v.toFixed(0));
+
+  bind('mass','massv',v=>m=v, v=>v.toFixed(0));
+  bind('W','Wv',v=>Wmm=v, v=>v.toFixed(0));
+  bind('H','Hv',v=>Hmm=v, v=>v.toFixed(0));
+  bind('cx0','cx0v',v=>cx0=v, v=>v.toFixed(0));
+  bind('cy0','cy0v',v=>cy0=v, v=>v.toFixed(0));
+  bind('cdphi','cdphiv',v=>cdphi=v, v=>v.toFixed(0));
+
+  // ===== 物理状態 =====
+  let t=0, dt=1/600;                 // 固定刻み
+  let xt=0, vt=0;                    // 台車位置・速度（mm, mm/s）
+  let cx=7, cy=-1800, cvx=0, cvy=0;  // CAB COM
+  let phi=0, omega=0;                // CAB 回転
+  const gmm = -9810;                 // 重力（mm/s², 上＋なので下向きは負）
+
+  // 回転中心（フック原点からの相対座標）
+  const rootL = {x:-700, y:-100};
+  const rootR = {x: 700, y:-100};
+
+  // UI ボタン類
+  const btnReset=document.getElementById('reset');
+  const btnPause=document.getElementById('pause'); let paused=false;
+  btnReset.addEventListener('click',()=>reset());
+  btnPause.addEventListener('click',()=>{paused=!paused;btnPause.textContent=paused?'再開':'一時停止';});
+
+  // キー入力
+  let keyL=false,keyR=false,brake=false;
+  window.addEventListener('keydown',e=>{
+    if(e.code==='ArrowLeft') keyL=true;
+    if(e.code==='ArrowRight') keyR=true;
+    if(e.code==='Space') brake=true;
+    if(e.key==='r'||e.key==='R') reset();
+    if(e.key==='p'||e.key==='P'){paused=!paused;btnPause.textContent=paused?'再開':'一時停止';}
+  });
+  window.addEventListener('keyup',e=>{
+    if(e.code==='ArrowLeft') keyL=false;
+    if(e.code==='ArrowRight') keyR=false;
+    if(e.code==='Space') brake=false;
+  });
+
+  function reset(){
+    t=0; xt=0; vt=0; phi=0; omega=0; cvx=0; cvy=0;
+    cx=cx0; cy=cy0; paused=false; btnPause.textContent='一時停止';
+  }
+  reset();
+
+  // ===== 力の適用（CAB へ）=====
+  function applyForces(){
+    // 台車入力（加速度）と速度上限
+    let u=0; if(keyL) u-=a_cmd; if(keyR) u+=a_cmd; if(brake) u += -3*vt;
+    let ax_t = u - ccart*vt;
+    vt += ax_t*dt;
+    // 速度上限
+    if(vt>vmax) vt=vmax; if(vt<-vmax) vt=-vmax;
+    xt += vt*dt;
+
+    // 慣性モーメント（m単位で）
+    const Wm=Wmm/1000, Hm=Hmm/1000;
+    const I = m*(Wm*Wm+Hm*Hm)/12;
+
+    // CAB 接触点（受け溝）ローカル座標
+    const xL_loc = -Wmm/2 + 60;               // 左右端から 60mm 内側に受面
+    const xR_loc =  Wmm/2 - 60;
+    const yGroove =  Hmm/2 - groove;          // 上面から d[mm] 下の高さ（ローカル）
+
+    // 回転のサイン／コサイン
+    const c = Math.cos(phi), s = Math.sin(phi);
+
+    // CAB受面の世界座標
+    const pCL = { x: cx + c*xL_loc - s*yGroove,
+                  y: cy + s*xL_loc + c*yGroove };
+    const pCR = { x: cx + c*xR_loc - s*yGroove,
+                  y: cy + s*xR_loc + c*yGroove };
+
+    // 受面の速度（剛体：v + ω×r）
+    const rL = { x: c*xL_loc - s*yGroove, y: s*xL_loc + c*yGroove };
+    const rR = { x: c*xR_loc - s*yGroove, y: s*xR_loc + c*yGroove };
+    const vCL = { x: cvx - omega*rL.y, y: cvy + omega*rL.x }; // 2D: ω×r = (-ωry, ωrx)
+    const vCR = { x: cvx - omega*rR.y, y: cvy + omega*rR.x };
+
+    // アーム先端（受面）の世界座標（台車に追従）
+    const thLr = thL*Math.PI/180, thRr = thR*Math.PI/180;
+    const aL = { x: xt + rootL.x + Larm*Math.cos(thLr),
+                 y: rootL.y + Larm*Math.sin(thLr) };
+    const aR = { x: xt + rootR.x + Larm*Math.cos(thRr),
+                 y: rootR.y + Larm*Math.sin(thRr) };
+    const vAL = { x: vt, y: 0 };  // アーム角は手動設定のため角速度は 0（必要なら将来追加可）
+    const vAR = { x: vt, y: 0 };
+
+    // 片方向（上向き法線）拘束：y_contact >= y_arm を守る
+    // 侵入量 pen = y_arm - y_contact > 0 で押し返し（N = kn*pen + cn*(-vrel_n)）
+    function normalF(arm, vArm, pc, vc){
+      const pen = arm.y - pc.y;
+      if(pen <= 0) return {N:0, Ft:0};  // 浮き：無接触
+      const vrel_n = vc.y - vArm.y;     // 接触点の相対速度（正=受面が上昇）
+      let N = kn*pen + cn*(-vrel_n);    // 上向きを正
+      if(N < 0) N = 0;
+
+      // 接線（X）方向のクーロン摩擦
+      const vrel_t = vc.x - vArm.x;     // 正なら CABが右へ滑り
+      const Ft_sign = vrel_t===0?0:(vrel_t>0? -1: +1);  // すべりに抗う向き
+      const Ft = Ft_sign * Math.min(mu*N, Math.abs(200*vrel_t)); // 粗い速度依存で安定化
+
+      return {N, Ft};
+    }
+
+    const L = normalF(aL, vAL, pCL, vCL);
+    const R = normalF(aR, vAR, pCR, vCR);
+
+    // 力の合成（Nは上向き、Ftは左右）
+    // 並進：a_mm = 1000*(F_N / m)
+    const Fx = (L.Ft + R.Ft);                // [N]
+    const Fy = (L.N  + R.N ) + m*(gmm/1000); // [N]：重力は N 換算で足し込み
+
+    const ax_mm = 1000*Fx/m;
+    const ay_mm = 1000*Fy/m;
+
+    cvx += ax_mm*dt; cvy += ay_mm*dt;
+    cx  += cvx*dt;   cy  += cvy*dt;
+
+    // 回転（トルク τ = r×F, 2D: τ = rx*Fy - ry*Fx）rは[m]へ換算
+    const tauL = ( (rL.x/1000)*L.N - (rL.y/1000)*L.Ft );
+    const tauR = ( (rR.x/1000)*R.N - (rR.y/1000)*R.Ft );
+    const tau  = tauL + tauR - cdphi*omega;
+
+    const alpha = tau / I;      // [rad/s²]
+    omega += alpha*dt; phi += omega*dt;
+
+    // 数値安定のガード
+    if(!Number.isFinite(cx)||!Number.isFinite(cy)){ cx=cx0; cy=cy0; cvx=0; cvy=0; }
+    if(!Number.isFinite(phi)){ phi=0; omega=0; }
+    return {aL, aR, pCL, pCR, L, R};
+  }
+
+  // ===== 描画 =====
+  const readout=document.getElementById('readout');
+  function draw(cache){
+    const ppm=FitScale(); resize();
+    const W=cv.width, H=cv.height;
+
+    // 画面中心をフック原点に（可視領域内へオフセット）
+    const ox = W*0.5, oy = H*0.15;  // 原点のスクリーン位置（上寄せ）
+
+    const sx = x=> ox + x*ppm;
+    const sy = y=> oy - y*ppm;  // Y上＋なので反転
+
+    ctx.clearRect(0,0,W,H);
+
+    // Grid
+    ctx.save(); ctx.strokeStyle='#1b2445'; ctx.lineWidth=1;
+    const g=200; // 200mmグリッド
+    for(let x=-8000;x<=8000;x+=g){ctx.beginPath();ctx.moveTo(sx(x),0);ctx.lineTo(sx(x),H);ctx.stroke();}
+    for(let y=-4000;y<=4000;y+=g){ctx.beginPath();ctx.moveTo(0,sy(y));ctx.lineTo(W,sy(y));ctx.stroke();}
+    ctx.restore();
+
+    // Hoist trolley (green)
+    ctx.fillStyle='#26d07c';
+    const hoistW=220, hoistH=120; // px基準ではなく描画サイズ（見た目）
+    ctx.fillRect(sx(xt)-hoistW/2, sy(200)-hoistH/2, hoistW, hoistH); // 上方に描画
+    // Hook to origin line
+    ctx.strokeStyle='#26d07c'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(sx(xt), sy(0)); ctx.lineTo(sx(xt), sy(200)); ctx.stroke();
+    // Hook point
+    ctx.fillStyle='#26d07c'; ctx.beginPath(); ctx.arc(sx(0), sy(0), 5, 0, Math.PI*2); ctx.fill();
+
+    //吊具フレームの上梁（赤）
+    ctx.strokeStyle='#ff5a5a'; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.moveTo(sx(xt-1000), sy(-100)); ctx.lineTo(sx(xt+1000), sy(-100)); ctx.stroke();
+
+    // アーム（赤線）
+    const thLr = thL*Math.PI/180, thRr = thR*Math.PI/180;
+    const aL = cache.aL, aR = cache.aR;
+    ctx.strokeStyle='#ff5a5a'; ctx.lineWidth=6;
+    // 左縦アーム
+    ctx.beginPath(); ctx.moveTo(sx(xt+rootL.x), sy(rootL.y)); ctx.lineTo(sx(aL.x), sy(aL.y)); ctx.stroke();
+    // 右縦アーム
+    ctx.beginPath(); ctx.moveTo(sx(xt+rootR.x), sy(rootR.y)); ctx.lineTo(sx(aR.x), sy(aR.y)); ctx.stroke();
+
+    // 受面マーク
+    ctx.fillStyle='#ffb3b3';
+    ctx.fillRect(sx(aL.x)-6, sy(aL.y)-3, 12, 6);
+    ctx.fillRect(sx(aR.x)-6, sy(aR.y)-3, 12, 6);
+
+    // CAB（青）
+    ctx.save();
+    ctx.translate(sx(cx), sy(cy));
+    ctx.rotate(-phi); // 画面座標は上下反転のため符号反転
+    ctx.fillStyle='rgba(127,182,255,0.9)';
+    ctx.fillRect(-Wmm*ppm/2, +Hmm*ppm/2 - Hmm*ppm, Wmm*ppm, Hmm*ppm); // 中心(cx,cy)
+    ctx.restore();
+
+    // 受け溝位置（CAB側）表示
+    ctx.fillStyle='#ffd166';
+    ctx.beginPath(); ctx.arc(sx(cache.pCL.x), sy(cache.pCL.y), 4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx(cache.pCR.x), sy(cache.pCR.y), 4, 0, Math.PI*2); ctx.fill();
+
+    // 情報
+    readout.textContent =
+      `t=${t.toFixed(2)} s\n` +
+      `Trolley: x=${xt.toFixed(1)} mm  v=${vt.toFixed(1)} mm/s\n` +
+      `CAB:    c=(${cx.toFixed(1)}, ${cy.toFixed(1)}) mm  φ=${(phi*180/Math.PI).toFixed(2)} deg\n` +
+      `Contact: N_L=${cache.L.N.toFixed(1)} N  Ft_L=${cache.L.Ft.toFixed(1)} N  | `+
+      `N_R=${cache.R.N.toFixed(1)} N  Ft_R=${cache.R.Ft.toFixed(1)} N\n` +
+      `μ=${mu.toFixed(2)}  kₙ=${kn.toFixed(0)} N/mm  cₙ=${cn.toFixed(0)} N·s/mm`;
+  }
+
+  // ===== ループ =====
+  let last=performance.now(), acc=0;
+  function loop(now){
+    const el=(now-last)/1000; last=now;
+    resize();
+    if(!paused){
+      acc+=Math.min(el,0.1);
+      while(acc>=dt){
+        var cache=applyForces(); // 物理固定刻み
+        t+=dt; acc-=dt;
+      }
+    }
+    draw(cache||{aL:{x:xt+rootL.x,y:rootL.y},aR:{x:xt+rootR.x,y:rootR.y},
+                 pCL:{x:cx,y:cy},pCR:{x:cx,y:cy},L:{N:0,Ft:0},R:{N:0,Ft:0}});
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
