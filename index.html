@@ -14,7 +14,6 @@ h1{font-size:18px;margin:0 0 6px}h2{font-size:13px;margin:8px 0 2px;color:var(--
 .row{display:flex;align-items:center;gap:10px}.row label{min-width:150px;font-size:12px;color:var(--muted)}
 .btn{background:linear-gradient(180deg,#3a76ff,#2b59d9);border:none;color:#fff;border-radius:12px;padding:9px 12px;cursor:pointer;font-weight:600}
 .btn.secondary{background:#19254a;color:var(--fg);border:1px solid #2a3a6a}
-.kbd{display:inline-block;padding:2px 8px;border-radius:8px;background:#10172a;border:1px solid #1d2744;font-size:12px;color:var(--muted)}
 .legend{font-size:12px;color:var(--muted)}canvas{width:100%;height:100%;display:block}
 hr{border:none;height:1px;background:#1b2445;margin:8px 0}
 input[type=file]{color:var(--muted)}
@@ -44,7 +43,7 @@ input[type=file]{color:var(--muted)}
 
     <hr/>
     <div class="legend" id="status">未読込</div>
-    <div class="small">デバッグマーカー表示：COM/支点/チェーン起点</div>
+    <div class="small">デバッグ点：HOISTアンカー / 天秤COM / アーム支点 / CAB重心</div>
   </div>
 
   <div class="card" style="position:relative;overflow:hidden"><canvas id="cv"></canvas></div>
@@ -68,49 +67,50 @@ function I_rect(m,W,H){const w=W/1000,h=H/1000; return m*(w*w+h*h)/12;}
 // ===== モデルと状態 =====
 let model={
   anchors:{
-    HOIST_TOP:{x:0,y:0},
+    HOIST_ANCHOR:{x:0,y:0},   // チェーン/ホイスト交点（=ホイスト下辺中央）
     FRAME_COM:{x:0,y:-560},
     PIVOT_L:{x:-700,y:-620}, PIVOT_R:{x:700,y:-620},
     CHAIN_A_LOCAL:{x:0,y:60}
   },
-  hoistRect:{Lh:400,Hh:200},
+  hoistRect:{Lh:400,Hh:200},     // 幅・高さ
   beam:{mass:180, span:2340, height:120},
   chain:{L:500},
   arms:{
     L:{out:74, drop_out:190, drop_vert:350, shelf_in:85, lip_in:51, lip_up:39, minDeg:-180, maxDeg:-90, mass:20, cg:{x:-644,y:-819}},
     R:{out:74, drop_out:190, drop_vert:350, shelf_in:85, lip_in:51, lip_up:39, minDeg:-90,  maxDeg:0,   mass:20, cg:{x: 644,y:-819}}
   },
-  shelves:[
+  shelves:[ // CAB×アーム受面の線分（世界座標）
     {x0:-700,y0:-1160,x1:-689,y1:-1160},
     {x0: 700,y0:-1160,x1: 711,y1:-1160}
   ],
-  cab:{mass:400,W:1800,H:1200,cg:{x:7,y:-1800}, mu:0.30, cphi:10},
-  sim:{dt:1/600, g:9810}, // g は下向きにかける（Y上＋なので -g）
+  cab:{mass:400,W:1800,H:1200,cg:{x:7,y:-1800}, mu:0.30, cphi:10, notch:0}, // notch: CAB上端から接触点までの下向き距離
+  sim:{dt:1/600, g:9810}, // Y上＋なので下向きは -g
   hoist:{a_cmd:3000, vmax:300, ccart:0.26}
 };
 
 // 状態
 let t=0, paused=false;
-let xt=0, vt=0;
-let xF=0, yF=-560, vFx=0, vFy=0, psi=0, wF=0;
-let cx=7, cy=-1800, cvx=0, cvy=0, phi=0, omega=0;
+let xt=0, vt=0;                                   // 台車 x（=ホイストアンカーx）
+let xF=0, yF=-560, vFx=0, vFy=0, psi=0, wF=0;     // 天秤 COM, 姿勢
+let cx=7, cy=-1800, cvx=0, cvy=0, phi=0, omega=0; // CAB
 
 function I_frame(){return I_rect(model.beam.mass, model.beam.span, model.beam.height);}
 function I_cab(){return I_rect(model.cab.mass, model.cab.W, model.cab.H);}
 function posF(local){return add({x:xF,y:yF}, rot(psi, local));}
 function velAt(local){const r=rot(psi,local); return {x:vFx - wF*r.y, y:vFy + wF*r.x};}
 
-// ===== CSV 1枚の読み込み =====
+// ===== CSV 1枚読み込み =====
 function parseUnifiedCSV(text){
   const rows = text.split(/\r?\n/).filter(l=>l.trim()).map(l=>l.split(','));
   let start=0; if(rows[0][0]?.match(/name|名称|Name/i)) start=1;
   const map={}; for(let i=start;i<rows.length;i++){ const k=rows[i][0]?.trim(); if(!k) continue; map[k]={val:num(rows[i][1])}; }
   const get=(k,def=0)=> map[k]? num(map[k].val) : def;
 
-  const HOIST_TOP={x:get('チェーン/ホイスト交点_X座標',0), y:get('チェーン/ホイスト交点_Y座標',0)};
+  // 交点と寸法
+  const HA={x:get('チェーン/ホイスト交点_X座標',0), y:get('チェーン/ホイスト交点_Y座標',0)};
   const chainFrame={x:get('チェーン/吊具天秤交点_X座標',0), y:get('チェーン/吊具天秤交点_Y座標',-500)};
   const L1=get('吊具天秤長さ_L1',2340), H1=get('吊具天秤高さ_H1',120), m1=get('吊具天秤重量_m1',180);
-  const frameCOM={x:chainFrame.x, y:chainFrame.y - H1/2}; // 上面基準→中心に補正
+  const frameCOM={x:chainFrame.x, y:chainFrame.y - H1/2}; // 上面基準→COM
 
   const PL={x:get('左側アーム回転中心座標_X',-700), y:get('左側アーム回転中心座標_Y',-620)};
   const PR={x:get('右側アーム回転中心座標_X', 700), y:get('右側アーム回転中心座標_Y',-620)};
@@ -129,38 +129,41 @@ function parseUnifiedCSV(text){
             minDeg:get('右側アーム最小角度', -90), maxDeg:get('右側アーム最大角度',  0) };
 
   const cab={ mass:get('CAB重量_mcab',400), W:get('CAB幅_Lcab',1800), H:get('CAB高さ_Hcab',1200),
-              cg:{x:get('CAB重心_Gcab_X座標',7), y:get('CAB重心_Gcab_Y座標',-1800)}, mu:0.30, cphi:10 };
+              cg:{x:get('CAB重心_Gcab_X座標',7), y:get('CAB重心_Gcab_Y座標',-1800)}, mu:0.30, cphi:10, notch:0 };
 
   const shL={x0:get('CAB/左側アーム受面範囲P1_X座標',-700), y0:get('CAB/左側アーム受面範囲P1_Y座標',-1160),
              x1:get('CAB/左側アーム受面範囲P2_X座標',-689), y1:get('CAB/左側アーム受面範囲P2_Y座標',-1160)};
   const shR={x0:get('CAB/右側アーム受面範囲P3_X座標', 700), y0:get('CAB/右側アーム受面範囲P3_Y座標',-1160),
              x1:get('CAB/右側アーム受面範囲P4_X座標', 711), y1:get('CAB/右側アーム受面範囲P4_Y座標',-1160)};
 
-  const Hc=get('ホイスト高さ_Hh',200), Lc=get('ホイスト長さ_Lh',400);
+  const Hh=get('ホイスト高さ_Hh',200), Lh=get('ホイスト長さ_Lh',400);
   const chainLen=get('チェーン長さ_Lc',500);
 
-  model.anchors={HOIST_TOP:HOIST_TOP, FRAME_COM:frameCOM, PIVOT_L:PL, PIVOT_R:PR,
+  model.anchors={HOIST_ANCHOR:HA, FRAME_COM:frameCOM, PIVOT_L:PL, PIVOT_R:PR,
                  CHAIN_A_LOCAL:{x:chainFrame.x-frameCOM.x, y:chainFrame.y-frameCOM.y}};
-  model.hoistRect={Lh:Lc,Hh:Hc};
+  model.hoistRect={Lh,Lh2:Lh,Hh};
   model.beam={mass:m1, span:L1, height:H1};
   model.chain={L:chainLen};
   model.arms={L,R};
   model.shelves=[shL,shR];
   model.cab=cab;
 
-  // 状態リセット
-  xt=HOIST_TOP.x; vt=0;
+  // 状態リセット＆初期接地
+  xt=HA.x; vt=0;
   xF=frameCOM.x; yF=frameCOM.y; vFx=0; vFy=0; psi=0; wF=0;
-  cx=cab.cg.x; cy=cab.cg.y; cvx=0; cvy=0; phi=0; omega=0;
+  // CABを受面に“乗せる”：CAB上端(=cg.y + H/2 - notch)が受面yに一致
+  const yShelfAvg = 0.5*(shL.y0 + shR.y0);
+  cy = yShelfAvg - (model.cab.H/2 - model.cab.notch);
+  cx = cab.cg.x; cvx=0; cvy=0; phi=0; omega=0;
+
   solveChainPosition(6);
   t=0;
 }
 
 // ===== チェーン拘束（剛体長） =====
-function I_frame(){return I_rect(model.beam.mass, model.beam.span, model.beam.height);}
 function solveChainPosition(iter=3){
   for(let k=0;k<iter;k++){
-    const H={x:xt,y:model.anchors.HOIST_TOP.y}, A=posF(model.anchors.CHAIN_A_LOCAL);
+    const H={x:xt,y:model.anchors.HOIST_ANCHOR.y}, A=posF(model.anchors.CHAIN_A_LOCAL);
     const r=sub(A,H); const L=len(r)||1; const n={x:r.x/L,y:r.y/L}; const C=L - model.chain.L;
     if(Math.abs(C)<1e-6) return;
     const rA=rot(psi,model.anchors.CHAIN_A_LOCAL);
@@ -171,7 +174,7 @@ function solveChainPosition(iter=3){
   }
 }
 function solveChainVelocity(){
-  const H={x:xt,y:model.anchors.HOIST_TOP.y}, vH={x:vt,y:0};
+  const H={x:xt,y:model.anchors.HOIST_ANCHOR.y}, vH={x:vt,y:0};
   const A=posF(model.anchors.CHAIN_A_LOCAL), vA=velAt(model.anchors.CHAIN_A_LOCAL);
   const r=sub(A,H); const L=len(r)||1; const n={x:r.x/L,y:r.y/L};
   const vrel=((vA.x-vH.x)*n.x + (vA.y-vH.y)*n.y)/1000;
@@ -196,7 +199,7 @@ function step(){
   vt = Math.max(-model.hoist.vmax, Math.min(model.hoist.vmax, vt));
   xt += vt*dt;
 
-  // 重力（Y上＋なので下向きは -g）
+  // 重力（下向き）
   vFy += (-gmm/1000)*dt;
 
   // チェーン拘束
@@ -206,36 +209,51 @@ function step(){
   // フレーム積分
   xF += vFx*dt; yF += vFy*dt; psi += wF*dt;
 
-  // 受面との接触
-  const Icab=I_cab(); const mu=model.cab.mu;
+  // ===== 受面接触（各受面の“中央x”に一致する CAB 上端点で評価） =====
+  const Icab=I_cab(), mu=model.cab.mu;
   const cph=Math.cos(phi), sph=Math.sin(phi);
-  const yTop = model.cab.H/2 - 80;
-  const px=[-model.cab.W/2 + 60, model.cab.W/2 - 60];
-
+  const yTopOffset = model.cab.H/2 - model.cab.notch;  // CAB重心から接触点までの+Y方向距離（初期は上端）
   for(const seg of model.shelves){
-    const x0=seg.x0, y0=seg.y0, x1=seg.x1, y1=seg.y1;
-    const n={x:0,y:1}, tdir={x:1,y:0}; // 水平受面
-    for(const xoff of px){
-      const P={x:cx + cph*xoff - sph*yTop, y:cy + sph*xoff + cph*yTop};
-      if(P.x>=Math.min(x0,x1)-1e-3 && P.x<=Math.max(x0,x1)+1e-3 && P.y<=y0+1e-3){
-        const r={x:(P.x-cx)/1000, y:(P.y-cy)/1000};
-        const vP={x:cvx - omega*(P.y-cy), y:cvy + omega*(P.x-cx)};
-        const vrelN=(vP.x*n.x + vP.y*n.y)/1000;
-        const K=1/model.cab.mass + ((r.x*n.y - r.y*n.x)**2)/Icab;
-        const Jn=Math.max(0, -vrelN/K);
-        cvx += (1000*Jn*n.x)/model.cab.mass; cvy += (1000*Jn*n.y)/model.cab.mass; omega += ((r.x*Jn*n.y - r.y*Jn*n.x))/Icab;
+    const xs = 0.5*(seg.x0 + seg.x1);      // 受面の中央x
+    const ys = seg.y0;                      // 受面のy（水平想定）
+    // CABの上端線にある接触点の xoff を解く： Px = cx + cph*xoff - sph*yTopOffset = xs
+    let xoff;
+    if(Math.abs(cph) < 1e-6){
+      xoff = 0; // 回転90°に極端に近いときは中心を使う（実運用ではほぼ発生しない）
+    }else{
+      xoff = (xs - cx + sph*yTopOffset)/cph;
+    }
+    // CAB 幅でクランプ（±W/2の内側 20mm を安全域）
+    const xmin = -model.cab.W/2 + 20, xmax = model.cab.W/2 - 20;
+    if(xoff < xmin) xoff = xmin; if(xoff > xmax) xoff = xmax;
 
-        const vrelT=(vP.x*tdir.x + vP.y*tdir.y)/1000;
-        const Kt=1/model.cab.mass + ((r.x*tdir.y - r.y*tdir.x)**2)/Icab;
-        const Jt_unc=-vrelT/Kt; const Jt=Math.max(-mu*Jn, Math.min(mu*Jn, Jt_unc));
-        cvx += (1000*Jt*tdir.x)/model.cab.mass; cvy += (1000*Jt*tdir.y)/model.cab.mass; omega += ((r.x*Jt*tdir.y - r.y*Jt*tdir.x))/Icab;
+    // 接触点ワールド座標
+    const P = { x: cx + cph*xoff - sph*yTopOffset,
+                y: cy + sph*xoff + cph*yTopOffset };
 
-        const pen=y0-P.y; if(pen>0){ cy += pen*0.5; }
-      }
+    // 法線（上向き）で非貫通＆摩擦
+    if(P.y <= ys + 1e-3){  // 受面より下（＝めり込み）
+      const n={x:0,y:1}, tdir={x:1,y:0};
+      const r={x:(P.x-cx)/1000, y:(P.y-cy)/1000};
+      const vP={x:cvx - omega*(P.y-cy), y:cvy + omega*(P.x-cx)};
+      // 法線インパルス
+      const vrelN=(vP.x*n.x + vP.y*n.y)/1000;
+      const K=1/model.cab.mass + ((r.x*n.y - r.y*n.x)**2)/Icab;
+      const Jn=Math.max(0, -vrelN/K);
+      cvx += (1000*Jn*n.x)/model.cab.mass; cvy += (1000*Jn*n.y)/model.cab.mass; omega += ((r.x*Jn*n.y - r.y*Jn*n.x))/Icab;
+      // 摩擦
+      const vrelT=(vP.x*tdir.x + vP.y*tdir.y)/1000;
+      const Kt=1/model.cab.mass + ((r.x*tdir.y - r.y*tdir.x)**2)/Icab;
+      const Jt_unc=-vrelT/Kt; const Jt=Math.max(-mu*Jn, Math.min(mu*Jn, Jt_unc));
+      cvx += (1000*Jt*tdir.x)/model.cab.mass; cvy += (1000*Jt*tdir.y)/model.cab.mass; omega += ((r.x*Jt*tdir.y - r.y*Jt*tdir.x))/Icab;
+
+      // 位置押し戻し（静的補正）
+      const pen = ys - P.y;
+      if(pen > 0) cy += pen*0.6;
     }
   }
 
-  // CAB積分（重力は下向き）
+  // CAB積分
   cvy += (-gmm/1000)*dt;
   cx += cvx*dt; cy += cvy*dt;
   omega += (-model.cab.cphi*omega/Icab)*dt; phi += omega*dt;
@@ -252,22 +270,23 @@ function draw(){
   for(let y=-4000;y<=4000;y+=200){ctx.beginPath();ctx.moveTo(0,sy(y));ctx.lineTo(W,sy(y));ctx.stroke();}
   ctx.restore();
 
-  // hoist：原点（HOIST_TOP）の「上辺中央」から矩形を下へ描画
-  const ht=model.anchors.HOIST_TOP;
+  // hoist矩形（基準＝HOIST_ANCHOR：下辺中央）
+  const ha=model.anchors.HOIST_ANCHOR;
+  const topY = ha.y + model.hoistRect.Hh; // 上辺Y
   ctx.fillStyle='#26d07c';
-  ctx.fillRect(sx(xt)-model.hoistRect.Lh*s/2, sy(ht.y), model.hoistRect.Lh*s, model.hoistRect.Hh*s);
-  // chain（HOIST_TOP→フレーム取付点）
+  ctx.fillRect(sx(xt)-model.hoistRect.Lh*s/2, sy(topY), model.hoistRect.Lh*s, model.hoistRect.Hh*s);
+  // chain
   const A=posF(model.anchors.CHAIN_A_LOCAL);
-  ctx.strokeStyle='#7bd6a8'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(sx(xt),sy(ht.y)); ctx.lineTo(sx(A.x), sy(A.y)); ctx.stroke();
+  ctx.strokeStyle='#7bd6a8'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(sx(xt),sy(ha.y)); ctx.lineTo(sx(A.x), sy(A.y)); ctx.stroke();
 
   // beam（天秤）
   ctx.save(); ctx.translate(sx(xF), sy(yF)); ctx.rotate(-psi);
   ctx.fillStyle='#ff7070'; ctx.fillRect(-model.beam.span*s/2, -model.beam.height*s/2, model.beam.span*s, model.beam.height*s);
   // COMマーカー
-  ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(0,0,4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fill();
   ctx.restore();
 
-  // arms
+  // arms（概形）
   function drawArm(side){
     const isL=(side==='L'); const prm=model.arms[side];
     const root = isL ? model.anchors.PIVOT_L : model.anchors.PIVOT_R;
@@ -281,26 +300,25 @@ function draw(){
     const shelfStart=step(-sgn*prm.shelf_in, 0);
     const shelfEnd  =step(-sgn*prm.lip_in,  prm.lip_up);
     ctx.stroke();
-    // 支点マーカー
+    // 支点・受面強調
     ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(sx(root.x),sy(root.y),3,0,Math.PI*2); ctx.fill();
-    // 受面ハイライト
     ctx.strokeStyle='#ff9a9a'; ctx.lineWidth=8; ctx.beginPath(); ctx.moveTo(sx(shelfStart.x),sy(shelfStart.y)); ctx.lineTo(sx(shelfEnd.x),sy(shelfEnd.y)); ctx.stroke();
   }
   drawArm('L'); drawArm('R');
 
-  // shelves（CSVの受面線分も表示）
+  // shelves（CSVの線分）
   ctx.strokeStyle='#ffb3b3'; ctx.lineWidth=2;
   for(const seg of model.shelves){ ctx.beginPath(); ctx.moveTo(sx(seg.x0),sy(seg.y0)); ctx.lineTo(sx(seg.x1),sy(seg.y1)); ctx.stroke(); }
 
   // CAB
   ctx.save(); ctx.translate(sx(cx), sy(cy)); ctx.rotate(-phi);
   ctx.fillStyle='rgba(127,182,255,0.9)'; ctx.fillRect(-model.cab.W*s/2, +model.cab.H*s/2 - model.cab.H*s, model.cab.W*s, model.cab.H*s);
-  // CGマーカー
-  ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fill();
+  // CG
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fill();
   ctx.restore();
 
-  // HOIST_TOP マーカー
-  ctx.fillStyle='#7bd6a8'; ctx.beginPath(); ctx.arc(sx(xt),sy(ht.y),3,0,Math.PI*2); ctx.fill();
+  // HOISTアンカー点
+  ctx.fillStyle='#7bd6a8'; ctx.beginPath(); ctx.arc(sx(xt),sy(ha.y),3,0,Math.PI*2); ctx.fill();
 }
 
 // ===== ループ =====
@@ -328,9 +346,13 @@ async function applyUnifiedFromLocal(){
 }
 function togglePause(){ paused=!paused; document.getElementById('pause').textContent=paused?'再開':'一時停止'; }
 function doReset(){
-  xt=model.anchors.HOIST_TOP.x; vt=0;
+  // CSV反映後のモデル値から状態だけを初期化＋接地
+  const ha=model.anchors.HOIST_ANCHOR;
+  xt=ha.x; vt=0;
   xF=model.anchors.FRAME_COM.x; yF=model.anchors.FRAME_COM.y; vFx=0; vFy=0; psi=0; wF=0;
-  cx=model.cab.cg.x; cy=model.cab.cg.y; cvx=0; cvy=0; phi=0; omega=0;
+  const yShelfAvg = 0.5*(model.shelves[0].y0 + model.shelves[1].y0);
+  cy = yShelfAvg - (model.cab.H/2 - model.cab.notch);
+  cx = model.cab.cg.x; cvx=0; cvy=0; phi=0; omega=0;
   solveChainPosition(6); t=0; paused=false;
   document.getElementById('pause').textContent='一時停止';
   setStatus('リセットしました');
