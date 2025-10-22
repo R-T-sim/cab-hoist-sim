@@ -1,280 +1,367 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>DXF レイヤビューア（静的表示 / mm / Y上＋）</title>
-<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="10" fill="%2310214a"/><path d="M10 46 L32 18 L54 46" stroke="%23ffd24d" stroke-width="6" fill="none"/></svg>'>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CAB 2D（要素数値情報.csv 1枚読み込み / mm / Y上＋）</title>
 <style>
-:root{ --bg:#0b1020; --panel:#121a33; --fg:#e8eef9; --muted:#9fb3d9; --accent:#3a76ff; --grid:#1b2445; --axis:#2f8bff; }
-*{box-sizing:border-box} html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Meiryo,sans-serif}
-.wrap{display:grid;grid-template-columns:360px 1fr;gap:12px;padding:12px;height:100%}
-.card{background:var(--panel);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.35);overflow:hidden}
+:root{--bg:#0b1020;--fg:#e8eef9;--muted:#9fb3d9;--card:#121a33;--good:#26d07c;--arm:#ff5a5a;--cab:#7fb6ff}
+html,body{height:100%}body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif}
+.wrap{display:grid;grid-template-columns:380px 1fr;gap:14px;height:100%;padding:14px;box-sizing:border-box}
+.card{background:var(--card);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
 .panel{padding:14px;display:flex;flex-direction:column;gap:10px}
-h1{font-size:18px;margin:0 0 6px} h2{font-size:13px;color:var(--muted);margin:10px 0 6px}
-.row{display:flex;gap:8px;align-items:center}
-.row label{min-width:110px;font-size:12px;color:var(--muted)}
-input[type=text]{flex:1;background:#0f1730;color:var(--fg);border:1px solid #24305a;border-radius:10px;padding:8px}
-.btn{background:linear-gradient(180deg,#3a76ff,#2b59d9);border:none;color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:600}
-.btn.ghost{background:#0f1730;border:1px solid #2a3a6a;color:var(--fg)}
-.kbd{display:inline-block;padding:2px 6px;border:1px solid #2a3a6a;border-radius:8px;color:#9fb3d9;font-size:12px}
-.small{font-size:12px;color:var(--muted)}
-.layer{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px}
-.sw{width:14px;height:14px;border-radius:4px;border:1px solid #0006}
-hr{border:none;height:1px;background:#1c2343;margin:6px 0}
-canvas{width:100%;height:100%;display:block;cursor:grab} canvas:active{cursor:grabbing}
-.legend{font-size:12px;color:var(--muted)}
-.badge{background:#10214a;color:#9fb3d9;border:1px solid #213064;padding:2px 6px;border-radius:10px;font-size:12px}
+h1{font-size:18px;margin:0 0 6px}h2{font-size:13px;margin:8px 0 2px;color:var(--muted);font-weight:600}
+.row{display:flex;align-items:center;gap:10px}.row label{min-width:150px;font-size:12px;color:var(--muted)}
+.btn{background:linear-gradient(180deg,#3a76ff,#2b59d9);border:none;color:#fff;border-radius:12px;padding:9px 12px;cursor:pointer;font-weight:600}
+.btn.secondary{background:#19254a;color:var(--fg);border:1px solid #2a3a6a}
+.kbd{display:inline-block;padding:2px 8px;border-radius:8px;background:#10172a;border:1px solid #1d2744;font-size:12px;color:var(--muted)}
+.legend{font-size:12px;color:var(--muted)}canvas{width:100%;height:100%;display:block}
+hr{border:none;height:1px;background:#1b2445;margin:8px 0}
+input[type=file]{color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="card panel">
     <div>
-      <h1>DXF レイヤビューア</h1>
+      <h1>ホイスト（緑）＋ 吊具天秤＆アーム（赤）＋ CAB（青）</h1>
       <div class="legend">
-        単位＝mm、座標系＝X右＋ / Y上＋。物理なしの純表示。<br>
-        <span class="badge">操作</span> ドラッグ＝パン、<span class="kbd">ホイール</span>＝ズーム、<span class="kbd">F</span>＝フィット、<span class="kbd">R</span>＝初期表示。
+        入力：<b>要素数値情報.csv</b>（1枚）／ 単位：mm（Y上＋）／ チェーンは剛体長。<br>
+        ← / →：台車加減速（|v|≤0.3 m/s）、Space：ブレーキ、P：一時停止、R：リセット。
       </div>
     </div>
 
-    <h2>読込</h2>
-    <div class="row">
-      <label>GitHub内</label>
-      <input id="path" type="text" value="位置関係整理ファイル.dxf" />
-      <button id="load" class="btn">読み込み</button>
-    </div>
-    <div class="row">
-      <label>ローカル</label>
-      <input id="file" type="file" accept=".dxf" />
-      <button id="fit" class="btn ghost">フィット</button>
-      <button id="reset" class="btn ghost">R</button>
+    <h2>CSV 読み込み</h2>
+    <div class="row"><label>リポジトリ直下</label><button class="btn" id="loadUnified">1枚CSVを読み込み</button></div>
+    <div class="row"><label>ローカル選択</label><input id="fileUnified" type="file" accept=".csv"><button class="btn secondary" id="applyUnified">反映</button></div>
+
+    <h2>操作</h2>
+    <div class="row" style="gap:12px;flex-wrap:wrap">
+      <button class="btn secondary" id="pause">一時停止</button>
+      <button class="btn secondary" id="reset">リセット</button>
     </div>
 
-    <h2>レイヤ</h2>
-    <div id="layers"></div>
-
-    <h2>表示</h2>
-    <div class="row"><label>グリッド</label><input id="grid" type="checkbox" checked /> <span class="small">間隔 200mm</span></div>
-    <div class="row"><label>原点/軸</label><input id="axes" type="checkbox" checked /></div>
-    <div class="row"><label>注釈文字（TEXT/MTEXT）</label><input id="showtext" type="checkbox" /></div>
-    <div class="row"><label>注釈ブロックを除外</label><input id="skipAnno" type="checkbox" checked /> <span class="small">（\*D… / 引出線 / 注釈 / 寸法）</span></div>
-
-    <hr>
-    <div id="info" class="small">未読込</div>
+    <hr/>
+    <div class="legend" id="status">未読込</div>
   </div>
 
-  <div class="card"><canvas id="cv"></canvas></div>
+  <div class="card" style="position:relative;overflow:hidden"><canvas id="cv"></canvas></div>
 </div>
 
 <script>
-// ===== Canvas =====
+// ========================= 基本ユーティリティ =========================
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
-const DPR=Math.max(1,window.devicePixelRatio||1); let ready=false;
-function resize(){const r=cv.getBoundingClientRect(); const w=Math.max(2,Math.floor(r.width*DPR)),h=Math.max(2,Math.floor(r.height*DPR)); if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;} if(ready) draw();}
-window.addEventListener('resize',resize);
+const DPR=Math.max(1,window.devicePixelRatio||1);
+function resize(){const r=cv.getBoundingClientRect();const w=Math.max(2,Math.floor(r.width*DPR)),h=Math.max(2,Math.floor(r.height*DPR)); if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}}
+window.addEventListener('resize',resize); resize();
+function PPM(){const W=cv.width,H=cv.height;return Math.max(Math.min(W/6000,H/4200),0.08);}
+const eps=1e-9;
+function num(v){const n=parseFloat(String(v??'').replace(/[^\-+0-9.eE]/g,'')); return Number.isFinite(n)?n:0;}
+function rot(a,v){const c=Math.cos(a),s=Math.sin(a);return {x:c*v.x - s*v.y, y:s*v.x + c*v.y};}
+function add(a,b){return {x:a.x+b.x,y:a.y+b.y};}
+function sub(a,b){return {x:a.x-b.x,y:a.y-b.y};}
+function len(v){return Math.hypot(v.x,v.y);}
+function I_rect(m,W,H){const w=W/1000,h=H/1000; return m*(w*w+h*h)/12;}
 
-// ===== Utils =====
-const TAU=2*Math.PI;
-const aciTable={0:"#cccccc",1:"#ff0000",2:"#ffff00",3:"#00ff00",4:"#00ffff",5:"#0000ff",6:"#ff00ff",7:"#ffffff",8:"#808080",9:"#808080"};
-const aciColor=n=>aciTable[n]??(()=>{const h=(n%64)/64,s=0.7,v=0.95,i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-s*f),t=v*(1-s*(1-f)),[r,g,b]=[[v,t,p],[q,v,p],[p,v,t],[p,q,v],[t,p,v],[v,p,q]][i%6].map(x=>Math.round(x*255));return`rgb(${r},${g},${b})`;})();
-const I=[1,0,0,0,1,0];
-const TRS=(tx,ty,ang=0,sx=1,sy=sx)=>{const c=Math.cos(ang),s=Math.sin(ang);return [c*sx,-s*sx,s*sy,c*sy,tx,ty];};
-const mulT=(A,B)=>[A[0]*B[0]+A[2]*B[1],A[1]*B[0]+A[3]*B[1],A[0]*B[2]+A[2]*B[3],A[1]*B[2]+A[3]*B[3],A[0]*B[4]+A[2]*B[5]+A[4],A[1]*B[4]+A[3]*B[5]+A[5]];
-const applyT=(T,p)=>({x:T[0]*p.x+T[2]*p.y+T[4], y:T[1]*p.x+T[3]*p.y+T[5]});
+// ========================= モデルと状態 =========================
+let model={
+  anchors:{
+    HOIST_TOP:{x:0,y:0},   // 原点（CSVの「チェーン/ホイスト交点」）
+    HOOK:{x:0,y:-500},     // フック位置（描画用）
+    FRAME_COM:{x:0,y:-560},
+    PIVOT_L:{x:-700,y:-620}, PIVOT_R:{x:700,y:-620},
+    CHAIN_A_LOCAL:{x:0,y:60} // フレーム座標でのチェーン取付
+  },
+  beam:{mass:180, span:2340, height:120},
+  chain:{L:500},
+  hoistRect:{Lh:400,Hh:200},
+  arms:{ // 形状・制限（度）はCSVがあれば上書き
+    L:{out:74, drop_out:190, drop_vert:350, shelf_in:85, lip_in:51, lip_up:39, minDeg:-180, maxDeg:-90, mass:20, cg:{x:-644,y:-819}},
+    R:{out:74, drop_out:190, drop_vert:350, shelf_in:85, lip_in:51, lip_up:39, minDeg:-90,  maxDeg:0,   mass:20, cg:{x: 644,y:-819}}
+  },
+  shelves:[ // CAB×アーム受面の接触線（世界座標）
+    {x0:-700,y0:-1160,x1:-689,y1:-1160}, // 左
+    {x0: 700,y0:-1160,x1: 711,y1:-1160}  // 右
+  ],
+  cab:{mass:400,W:1800,H:1200,cg:{x:7,y:-1800}, mu:0.30, cphi:10},
+  sim:{dt:1/600, g:9810},
+  hoist:{a_cmd:3000, vmax:300, ccart:0.26}
+};
 
-// ===== DXF Parser（BLOCK/INSERT, POLYLINE+VERTEX, ELLIPSE, SPLINE 近似）=====
-function parseDXF(text){
-  const L=text.split(/\r\n|\r|\n/); let i=0;
-  const next=()=>{ if(i+1>=L.length) return null; const code=parseInt(L[i++].trim(),10); const val=(L[i++]??"").trim(); return {code,val}; };
-  const take=(arr,c)=>arr.filter(p=>p.code===c).map(p=>p.val);
-  const readPairs=()=>{ const arr=[]; while(true){ const p=next(); if(!p) break; if(p.code===0){ i-=2; break; } arr.push(p);} return arr; };
+// 状態（動）
+let t=0, paused=false;
+let xt=0, vt=0;                                   // 台車（= HOIST_TOP.x）
+let xF=0, yF=-560, vFx=0, vFy=0, psi=0, wF=0;     // フレームCOMと姿勢
+let cx=7, cy=-1800, cvx=0, cvy=0, phi=0, omega=0; // CAB
 
-  const layersColor={}, blocks={}, ents=[];
-  function parseSimple(type,pairs,layer,colorIdx){
-    const by=c=>take(pairs,c);
-    if(type==="LINE")     return {type:"line",layer,colorIdx,x1:+by(10)[0],y1:+by(20)[0],x2:+by(11)[0],y2:+by(21)[0]};
-    if(type==="LWPOLYLINE"){ const xs=by(10).map(Number),ys=by(20).map(Number),closed=(parseInt(by(70)[0]||"0",10)&1)===1; return {type:"polyline",layer,colorIdx,pts:xs.map((x,k)=>({x,y:ys[k]})),closed};}
-    if(type==="CIRCLE")  return {type:"circle",layer,colorIdx,cx:+by(10)[0],cy:+by(20)[0],r:+by(40)[0]};
-    if(type==="ARC")     return {type:"arc",layer,colorIdx,cx:+by(10)[0],cy:+by(20)[0],r:+by(40)[0],a0:(+by(50)[0]||0)*Math.PI/180,a1:(+by(51)[0]||0)*Math.PI/180};
-    if(type==="ELLIPSE"){ const cx=+by(10)[0],cy=+by(20)[0],ax=+by(11)[0],ay=+by(21)[0],ratio=+by(40)[0]||1,t0=+by(41)[0]||0,t1=+by(42)[0]||TAU,maj=Math.hypot(ax,ay),ang=Math.atan2(ay,ax),a=maj,b=maj*ratio,N=64,pts=[]; for(let k=0;k<=N;k++){const t=t0+(t1-t0)*k/N,x=a*Math.cos(t),y=b*Math.sin(t),c=Math.cos(ang),s=Math.sin(ang); pts.push({x:cx+c*x-s*y,y:cy+s*x+c*y});} return {type:"polyline",layer,colorIdx,pts,closed:false};}
-    if(type==="SPLINE"){ const xs=by(10).map(Number),ys=by(20).map(Number),P=xs.map((x,i)=>({x,y:ys[i]})); if(P.length<=1) return null; const pts=[P[0]]; for(let i=0;i<P.length-1;i++){ const p0=P[Math.max(0,i-1)],p1=P[i],p2=P[i+1],p3=P[Math.min(P.length-1,i+2)]; for(let t=0;t<=1;t+=0.25){ const t2=t*t,t3=t2*t; const x=0.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3); const y=0.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3); pts.push({x,y}); } } pts.push(P[P.length-1]); return {type:"polyline",layer,colorIdx,pts,closed:false};}
-    if(type==="TEXT"||type==="MTEXT"){ const x=+by(10)[0],y=+by(20)[0],h=+(by(40)[0]||by(42)[0]||"40"); let s=take(pairs,1).concat(take(pairs,3)).concat(take(pairs,4)).join("").replace(/\\P/g,"\n"); return {type:"text",layer,colorIdx,x,y,h,text:s};}
-    return null;
+function I_frame(){return I_rect(model.beam.mass, model.beam.span, model.beam.height);}
+function I_cab(){return I_rect(model.cab.mass, model.cab.W, model.cab.H);}
+
+// フレーム座標→世界
+function posF(local){return add({x:xF,y:yF}, rot(psi, local));}
+function velAt(local){const r=rot(psi,local); return {x:vFx - wF*r.y, y:vFy + wF*r.x};}
+
+// ========================= CSV 1枚のパーサ =========================
+function parseUnifiedCSV(text){
+  // 期待フォーマット：Name,Value,Unit（日本語名OK）
+  const rows = text.split(/\r?\n/).filter(l=>l.trim()).map(l=>l.split(','));
+  // 先頭行がヘッダかどうかを軽く判定
+  let start=0; if(rows[0][0].match(/name|名称|Name/i)) start=1;
+  const map={};
+  for(let i=start;i<rows.length;i++){
+    const [k,v,u]=[rows[i][0]?.trim(), rows[i][1]?.trim(), rows[i][2]?.trim()];
+    if(!k) continue;
+    map[k]= {val:num(v), unit:(u||'')};
   }
-  function parseEntitiesInto(target){
-    while(true){
-      const p=next(); if(!p) break;
-      if(p.code===0 && (p.val==="ENDSEC"||p.val==="ENDBLK")) break;
-      if(p.code!==0) continue;
-      const type=p.val;
-      if(type==="POLYLINE"){ const head=readPairs(); const layer=(take(head,8)[0]||"0"); const colorIdx=(take(head,62)[0]!==undefined)?parseInt(take(head,62)[0],10):undefined; const pts=[]; while(true){ const q=next(); if(!q) break; if(q.code===0&&q.val==="VERTEX"){ const vp=readPairs(); pts.push({x:+take(vp,10)[0],y:+take(vp,20)[0]}); } else if(q.code===0&&q.val==="SEQEND"){ break; } } if(pts.length>=2) target.push({type:"polyline",layer,colorIdx,pts,closed:false}); continue; }
-      if(type==="INSERT"){ const pairs=readPairs(), by=c=>take(pairs,c); target.push({type:"insert",layer:(by(8)[0]||"0"),colorIdx:(by(62)[0]!==undefined)?parseInt(by(62)[0],10):undefined,name:by(2)[0],x:+by(10)[0],y:+by(20)[0],sx:+(by(41)[0]||1),sy:+(by(42)[0]||by(41)[0]||1),ang:(+(by(50)[0]||0))*Math.PI/180}); continue; }
-      // DIMENSION/VIEWPORT/WIPEOUT/POINT 等は描画しない
-      const pairs=readPairs(); const layer=(take(pairs,8)[0]||"0"); const colorIdx=(take(pairs,62)[0]!==undefined)?parseInt(take(pairs,62)[0],10):undefined;
-      const e=parseSimple(type,pairs,layer,colorIdx); if(e) target.push(e);
-    }
+  // 取り出しヘルパ
+  const get = (k,def=0)=> map[k]? num(map[k].val) : def;
+
+  // アンカー類
+  const HOIST_TOP={x:get('チェーン/ホイスト交点_X座標',0), y:get('チェーン/ホイスト交点_Y座標',0)};
+  const HOOK     ={x:get('フック_X座標',0),            y:get('フック_Y座標',-500)};
+  const chainFrame={x:get('チェーン/吊具天秤交点_X座標',0), y:get('チェーン/吊具天秤交点_Y座標',-500)};
+
+  // 吊具天秤（フレーム）COMは「チェーン接点の真下に H/2 だけ下げる」と解釈
+  const L1=get('吊具天秤長さ_L1',2340), H1=get('吊具天秤高さ_H1',120), m1=get('吊具天秤重量_m1',180);
+  const frameCOM={x:chainFrame.x, y:chainFrame.y - H1/2};
+
+  // 回転中心（世界座標）
+  const PL={x:get('左側アーム回転中心座標_X',-700), y:get('左側アーム回転中心座標_Y',-620)};
+  const PR={x:get('右側アーム回転中心座標_X', 700), y:get('右側アーム回転中心座標_Y',-620)};
+
+  // アーム形状（左右）
+  const L={ out:get('左側アーム外広がり_out',74), drop_out:get('左側アーム外広がり_drop',190),
+            drop_vert:get('左側アーム垂直_drop',350), shelf_in:get('左側アーム_受面_in',85),
+            lip_in:get('左側アーム_返し_in',51), lip_up:get('左側アーム_返し_up',39),
+            mass:get('左側アーム重量_m_LH',20),
+            cg:{x:get('左側アーム重心_G_LH_X座標',-644), y:get('左側アーム重心_G_LH_Y座標',-819)},
+            minDeg:get('左側アーム最小角度',-180), maxDeg:get('左側アーム最大角度',-90) };
+  const R={ out:get('右側アーム外広がり_out',74), drop_out:get('右側アーム外広がり_drop',190),
+            drop_vert:get('右側アーム垂直_drop',350), shelf_in:get('右側アーム_受面_in',85),
+            lip_in:get('右側アーム_返し_in',51), lip_up:get('右側アーム_返し_up',39),
+            mass:get('右側アーム重量_m_LH',20),
+            cg:{x:get('右側アーム重心_G_LH_X座標', 644), y:get('右側アーム重心_G_LH_Y座標',-819)},
+            minDeg:get('右側アーム最小角度', -90), maxDeg:get('右側アーム最大角度',  0) };
+
+  // CAB
+  const cab={ mass:get('CAB重量_mcab',400), W:get('CAB幅_Lcab',1800), H:get('CAB高さ_Hcab',1200),
+              cg:{x:get('CAB重心_Gcab_X座標',7), y:get('CAB重心_Gcab_Y座標',-1800)}, mu:0.30, cphi:10 };
+
+  // 受面線分（CAB×アーム接触用）
+  const shL={x0:get('CAB/左側アーム受面範囲P1_X座標',-700), y0:get('CAB/左側アーム受面範囲P1_Y座標',-1160),
+             x1:get('CAB/左側アーム受面範囲P2_X座標',-689), y1:get('CAB/左側アーム受面範囲P2_Y座標',-1160)};
+  const shR={x0:get('CAB/右側アーム受面範囲P3_X座標', 700), y0:get('CAB/右側アーム受面範囲P3_Y座標',-1160),
+             x1:get('CAB/右側アーム受面範囲P4_X座標', 711), y1:get('CAB/右側アーム受面範囲P4_Y座標',-1160)};
+
+  // ホイスト矩形
+  const hoistRect={Lh:get('ホイスト長さ_Lh',400), Hh:get('ホイスト高さ_Hh',200)};
+
+  // モデルへ反映
+  model.anchors = {
+    HOIST_TOP:HOIST_TOP, HOOK:HOOK,
+    FRAME_COM:frameCOM, PIVOT_L:PL, PIVOT_R:PR,
+    CHAIN_A_LOCAL:{x:chainFrame.x-frameCOM.x, y:chainFrame.y-frameCOM.y}
+  };
+  model.beam={mass:m1, span:L1, height:H1};
+  model.chain={L:get('チェーン長さ_Lc',500)};
+  model.hoistRect=hoistRect;
+  model.arms={L,R};
+  model.shelves=[shL,shR];
+  model.cab=cab;
+
+  // 状態リセット
+  xt=HOIST_TOP.x; vt=0;
+  xF=frameCOM.x; yF=frameCOM.y; vFx=0; vFy=0; psi=0; wF=0;
+  cx=cab.cg.x; cy=cab.cg.y; cvx=0; cvy=0; phi=0; omega=0;
+  // チェーンの幾何（長さ）を初回から満たす
+  solveChainPosition(6);
+  t=0;
+}
+
+// ========================= チェーン拘束（剛体長） =========================
+function solveChainPosition(iter=3){
+  for(let k=0;k<iter;k++){
+    const H={x:xt,y:model.anchors.HOIST_TOP.y}, A=posF(model.anchors.CHAIN_A_LOCAL);
+    let r=sub(A,H); let L=len(r); if(L<eps) return;
+    const n={x:r.x/L,y:r.y/L}; const C=L - model.chain.L; if(Math.abs(C)<1e-6) return;
+    const rA=rot(psi,model.anchors.CHAIN_A_LOCAL);
+    const w=1/model.beam.mass, wrot=1/Math.max(1e-9,I_frame());
+    const s = rA.x*n.y - rA.y*n.x;
+    const denom = w + s*s*wrot;
+    const dl=C/denom;
+    xF -= w*n.x*dl; yF -= w*n.y*dl; psi -= wrot*s*dl;
   }
-  while(true){
-    const p=next(); if(!p) break;
-    if(p.code===0 && p.val==="SECTION"){
-      // section name
-      let name=""; while(true){ const q=next(); if(!q) break; if(q.code===2){ name=q.val; break; } if(q.code===0){ i-=2; break; } }
-      if(name==="TABLES"){
-        while(true){ const q=next(); if(!q) break; if(q.code===0&&q.val==="ENDSEC") break;
-          if(q.code===0&&q.val==="TABLE"){ let tname=""; let r; while((r=next())){ if(r.code===2){ tname=r.val; break; } }
-            if(tname==="LAYER"){ while((r=next())){ if(r.code===0&&r.val==="ENDTAB") break; if(r.code===0&&r.val==="LAYER"){ const ps=readPairs(); const nm=take(ps,2)[0]; const col=(take(ps,62)[0]!==undefined)?parseInt(take(ps,62)[0],10):7; if(nm) layersColor[nm]=col; } } }
-            else { while((r=next())){ if(r.code===0&&r.val==="ENDTAB") break; } }
-        }
-      } else if(name==="BLOCKS"){
-        while(true){ const q=next(); if(!q) break; if(q.code===0&&q.val==="ENDSEC") break;
-          if(q.code===0&&q.val==="BLOCK"){ const head=readPairs(); const bname=take(head,2)[0]||take(head,3)[0]; const items=[]; parseEntitiesInto(items); if(bname) blocks[bname]=items; }
-        }
-      } else if(name==="ENTITIES"){
-        parseEntitiesInto(ents);
-      } else {
-        // skip others
-        while(true){ const q2=next(); if(!q2) break; if(q2.code===0&&q2.val==="ENDSEC") break; }
+}
+function solveChainVelocity(){
+  const H={x:xt,y:model.anchors.HOIST_TOP.y}, vH={x:vt,y:0};
+  const A=posF(model.anchors.CHAIN_A_LOCAL), vA=velAt(model.anchors.CHAIN_A_LOCAL);
+  let r=sub(A,H), L=len(r); if(L<eps) return;
+  const n={x:r.x/L,y:r.y/L};
+  const vrel = ((vA.x-vH.x)*n.x + (vA.y-vH.y)*n.y)/1000;
+  const rAm=rot(psi,model.anchors.CHAIN_A_LOCAL); const rAm_m={x:rAm.x/1000,y:rAm.y/1000};
+  const K = 1/model.beam.mass + ((rAm_m.x*n.y - rAm_m.y*n.x)**2)/I_frame();
+  let J = - vrel / K; if(J<0) J=0; // 張力のみ
+  vFx += (-n.x*1000*J)/model.beam.mass; vFy += (-n.y*1000*J)/model.beam.mass;
+  wF  += ( (rAm_m.x*(-J*n.y) - rAm_m.y*(-J*n.x)) )/I_frame();
+}
+
+// ========================= ステップ =========================
+let keyL=false,keyR=false,brake=false;
+addEventListener('keydown',e=>{if(e.code==='ArrowLeft')keyL=true;if(e.code==='ArrowRight')keyR=true;if(e.code==='Space')brake=true;if(e.key==='p'||e.key==='P')togglePause();if(e.key==='r'||e.key==='R')doReset();});
+addEventListener('keyup',e=>{if(e.code==='ArrowLeft')keyL=false;if(e.code==='ArrowRight')keyR=false;if(e.code==='Space')brake=false;});
+
+function step(){
+  const dt=model.sim.dt, gmm=model.sim.g;
+
+  // 台車操作（運動学＋ダンピング）
+  let u=0; if(keyL)u-=model.hoist.a_cmd; if(keyR)u+=model.hoist.a_cmd; if(brake)u+=-3*vt;
+  vt += (u - model.hoist.ccart*vt)*dt;
+  vt = Math.max(-model.hoist.vmax, Math.min(model.hoist.vmax, vt));
+  xt += vt*dt;
+
+  // 重力
+  vFy += (gmm/1000)*dt;
+
+  // チェーン拘束
+  solveChainPosition(3);
+  solveChainVelocity();
+
+  // フレーム積分
+  xF += vFx*dt; yF += vFy*dt; psi += wF*dt;
+
+  // 受面との接触（左右 2 本の線分）
+  const Icab=I_cab(); const mu=model.cab.mu;
+  const cph=Math.cos(phi), sph=Math.sin(phi);
+  const yTop = model.cab.H/2 - 80; // CABの溝深さ近似
+  const px=[-model.cab.W/2 + 60, model.cab.W/2 - 60]; // 左右の接触代表点
+
+  for(const seg of model.shelves){
+    const x0=seg.x0, y0=seg.y0, x1=seg.x1, y1=seg.y1;
+    const n={x:0,y:1}, tdir={x:1,y:0}; // 受面は水平前提
+    for(const xoff of px){
+      const P={x:cx + cph*xoff - sph*yTop, y:cy + sph*xoff + cph*yTop};
+      if(P.x>=Math.min(x0,x1)-1e-3 && P.x<=Math.max(x0,x1)+1e-3 && P.y<=y0+1e-3){
+        const r={x:(P.x-cx)/1000, y:(P.y-cy)/1000};
+        const vP={x:cvx - omega*(P.y-cy), y:cvy + omega*(P.x-cx)};
+        // 法線インパルス
+        const vrelN = (vP.x*n.x + vP.y*n.y)/1000;
+        const K = 1/model.cab.mass + ((r.x*n.y - r.y*n.x)**2)/Icab;
+        const Jn = Math.max(0, -vrelN/K);
+        cvx += (1000*Jn*n.x)/model.cab.mass; cvy += (1000*Jn*n.y)/model.cab.mass; omega += ((r.x*Jn*n.y - r.y*Jn*n.x))/Icab;
+        // 摩擦
+        const vrelT = (vP.x*tdir.x + vP.y*tdir.y)/1000;
+        const Kt=1/model.cab.mass + ((r.x*tdir.y - r.y*tdir.x)**2)/Icab;
+        const Jt_unc = - vrelT/Kt; const Jt = Math.max(-mu*Jn, Math.min(mu*Jn, Jt_unc));
+        cvx += (1000*Jt*tdir.x)/model.cab.mass; cvy += (1000*Jt*tdir.y)/model.cab.mass; omega += ( (r.x*Jt*tdir.y - r.y*Jt*tdir.x))/Icab;
+        // 軽い押し戻し
+        const pen=y0-P.y; if(pen>0){ cy += pen*0.5; }
       }
     }
   }
-  const layers=[...new Set(ents.flatMap(e=>e.type==="insert" ? [e.layer, ...(blocks[e.name]?.map(be=>be.layer)||[])] : [e.layer]))].filter(Boolean).sort();
-  const colors={}; layers.forEach(n=>{ const aci=(layersColor[n]!==undefined)?layersColor[n]:7; colors[n]=aciColor(aci); });
-  return {entities:ents, layers, colors, blocks};
+
+  // CAB積分
+  cvy += gmm*dt/1000;
+  cx += cvx*dt; cy += cvy*dt;
+  omega += (-model.cab.cphi*omega/Icab)*dt; phi += omega*dt;
 }
 
-// ===== State =====
-let model=null;
-let showLayer={};
-let showGrid=true, showAxes=true, showText=false; // ← 文字は既定OFF
-let skipAnno=true;                                  // ← 注釈ブロック除外ON
-
-let s=0.25, ox=0, oy=0; let worldBBox=null;
-const sx_=(x)=>ox + x*s, sy_=(y)=>oy - y*s;
-
-// 注釈ブロック判定
-const isAnnoBlock = (name)=> !!name && /(^\*D\d+)|注釈|引出|寸法/i.test(name);
-
-// BBox（INSERT 再帰・注釈除外対応）
-function addBBox(b,x,y){ if(x<b.minx) b.minx=x; if(x>b.maxx) b.maxx=x; if(y<b.miny) b.miny=y; if(y>b.maxy) b.maxy=y; }
-function bboxOfEntity(e,T){
-  const b={minx:Infinity,miny:Infinity,maxx:-Infinity,maxy:-Infinity};
-  const push=(p)=>addBBox(b,p.x,p.y);
-  const line=(p1,p2)=>{push(applyT(T,p1)); push(applyT(T,p2));};
-  if(e.type==="line"){ line({x:e.x1,y:e.y1},{x:e.x2,y:e.y2}); return b; }
-  if(e.type==="polyline"){ e.pts.forEach(p=>push(applyT(T,p))); return b; }
-  if(e.type==="circle"||e.type==="arc"){ const N=64,a0=(e.a0??0),a1=(e.a1??TAU),step=Math.max(8,Math.floor(Math.abs(a1-a0)*N/TAU)); for(let k=0;k<=step;k++){ const a=a0+(a1-a0)*k/step; push(applyT(T,{x:e.cx+e.r*Math.cos(a), y:e.cy+e.r*Math.sin(a)})); } return b; }
-  if(e.type==="text" && showText){ push(applyT(T,{x:e.x,y:e.y})); return b; }
-  if(e.type==="insert"){
-    if(skipAnno && isAnnoBlock(e.name)) return b;
-    const B=model.blocks[e.name]; if(!B) return b;
-    const TT=mulT(T, TRS(e.x,e.y,e.ang,e.sx,e.sy));
-    for(const be of B){ if(showLayer[be.layer]===false) continue; const bb=bboxOfEntity(be, TT); addBBox(b,bb.minx,bb.miny); addBBox(b,bb.maxx,bb.maxy); }
-    return b;
-  }
-  return b;
-}
-function computeBBox(){
-  if(!model){ worldBBox=null; return; }
-  const b={minx:Infinity,miny:Infinity,maxx:-Infinity,maxy:-Infinity};
-  for(const e of model.entities){
-    if(e.type!=="insert" && showLayer[e.layer]===false) continue;
-    if(e.type==="text" && !showText) continue;
-    if(e.type==="insert" && skipAnno && isAnnoBlock(e.name)) continue;
-    const bb=bboxOfEntity(e,I); addBBox(b,bb.minx,bb.miny); addBBox(b,bb.maxx,bb.maxy);
-  }
-  if(!isFinite(b.minx)) worldBBox={minx:-1000,maxx:1000,miny:-1000,maxy:1000};
-  else worldBBox=b;
-}
-function fitToView(){
-  if(!model) return;
-  computeBBox();
-  const m=worldBBox; const W=cv.width,H=cv.height,margin=60;
-  const sx=(W-2*margin)/(m.maxx-m.minx||1), sy=(H-2*margin)/(m.maxy-m.miny||1);
-  s=Math.max(0.1, Math.min(sx, sy));
-  const cx=(m.minx+m.maxx)/2, cy=(m.miny+m.maxy)/2;
-  ox=W/2 - cx*s; oy=H/2 + cy*s;
-  draw();
-}
-function resetView(){ s=0.25; ox=cv.width*0.5; oy=cv.height*0.6; draw(); }
-
-function drawGrid(){
-  const step=200; const m=worldBBox||{minx:-4000,maxx:4000,miny:-2500,maxy:2500};
-  const gx0=Math.floor(m.minx/step)*step, gx1=Math.ceil(m.maxx/step)*step, gy0=Math.floor(m.miny/step)*step, gy1=Math.ceil(m.maxy/step)*step;
-  ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--grid'); ctx.lineWidth=1;
-  for(let x=gx0;x<=gx1;x+=step){ ctx.beginPath(); ctx.moveTo(sx_(x), sy_(gy0)); ctx.lineTo(sx_(x), sy_(gy1)); ctx.stroke(); }
-  for(let y=gy0;y<=gy1;y+=step){ ctx.beginPath(); ctx.moveTo(sx_(gx0), sy_(y)); ctx.lineTo(sx_(gx1), sy_(y)); ctx.stroke(); }
-}
-function drawAxes(){
-  ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--axis'); ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(sx_(0), sy_(-10000)); ctx.lineTo(sx_(0), sy_(10000)); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(sx_(-10000), sy_(0)); ctx.lineTo(sx_(10000), sy_(0)); ctx.stroke();
-  ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(sx_(0), sy_(0), 4, 0, TAU); ctx.fill();
-}
-function drawEntity(e,T){
-  const col=model.colors[e.layer]||"#ffffff"; ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=2;
-  if(e.type==="line"){ const p1=applyT(T,{x:e.x1,y:e.y1}),p2=applyT(T,{x:e.x2,y:e.y2}); ctx.beginPath(); ctx.moveTo(sx_(p1.x),sy_(p1.y)); ctx.lineTo(sx_(p2.x),sy_(p2.y)); ctx.stroke(); return; }
-  if(e.type==="polyline"){ if(e.pts.length<2) return; ctx.beginPath(); const a=applyT(T,e.pts[0]); ctx.moveTo(sx_(a.x),sy_(a.y)); for(let k=1;k<e.pts.length;k++){ const p=applyT(T,e.pts[k]); ctx.lineTo(sx_(p.x),sy_(p.y)); } if(e.closed) ctx.closePath(); ctx.stroke(); return; }
-  if(e.type==="circle"||e.type==="arc"){ const c=applyT(T,{x:e.cx,y:e.cy}); const a0=-(e.a0??0),a1=-(e.a1??TAU); const r=e.r*s*Math.hypot(T[0],T[3]); ctx.beginPath(); if(e.type==="circle"){ ctx.arc(sx_(c.x),sy_(c.y),r,0,TAU); } else { ctx.arc(sx_(c.x),sy_(c.y),r,a0,a1,a1<a0); } ctx.stroke(); return; }
-  if(e.type==="text" && showText){ const p=applyT(T,{x:e.x,y:e.y}); ctx.font=`${Math.max(10,e.h*s)}px ui-sans-serif`; ctx.fillStyle=col; for(const [i,ln] of String(e.text||"").split(/\r?\n/).entries()){ ctx.fillText(ln, sx_(p.x), sy_(p.y - i*e.h)); } return; }
-  if(e.type==="insert"){ if(skipAnno && isAnnoBlock(e.name)) return; const B=model.blocks[e.name]; if(!B) return; const TT=mulT(T, TRS(e.x,e.y,e.ang,e.sx,e.sy)); for(const be of B){ if(showLayer[be.layer]===false) continue; drawEntity(be, TT); } }
-}
+// ========================= 描画 =========================
 function draw(){
-  const W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H);
-  if(showGrid) drawGrid(); if(showAxes) drawAxes();
-  if(!model) return;
-  for(const e of model.entities){
-    if(e.type!=="insert" && showLayer[e.layer]===false) continue;
-    if(e.type==="text" && !showText) continue;
-    drawEntity(e,I);
+  const s=PPM(); resize(); const W=cv.width,H=cv.height; const ox=W*0.5, oy=H*0.15; const sx=x=>ox+x*s, sy=y=>oy-y*s;
+  ctx.clearRect(0,0,W,H);
+
+  // grid
+  ctx.save(); ctx.strokeStyle='#1b2445'; ctx.lineWidth=1;
+  for(let x=-8000;x<=8000;x+=200){ctx.beginPath();ctx.moveTo(sx(x),0);ctx.lineTo(sx(x),H);ctx.stroke();}
+  for(let y=-4000;y<=4000;y+=200){ctx.beginPath();ctx.moveTo(0,sy(y));ctx.lineTo(W,sy(y));ctx.stroke();}
+  ctx.restore();
+
+  // hoist rectangle（中心：HOIST_TOPの上に Hh/2）
+  const ht=model.anchors.HOIST_TOP;
+  ctx.fillStyle='#26d07c';
+  ctx.fillRect(sx(xt)-model.hoistRect.Lh*s/2, sy(ht.y+model.hoistRect.Hh/2)-model.hoistRect.Hh*s/2, model.hoistRect.Lh*s, model.hoistRect.Hh*s);
+  // chain（HOIST_TOP→フレーム取付点）
+  const A=posF(model.anchors.CHAIN_A_LOCAL);
+  ctx.strokeStyle='#7bd6a8'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(sx(xt),sy(ht.y)); ctx.lineTo(sx(A.x), sy(A.y)); ctx.stroke();
+
+  // beam（天秤）
+  ctx.save(); ctx.translate(sx(xF), sy(yF)); ctx.rotate(-psi);
+  ctx.fillStyle='#ff7070'; ctx.fillRect(-model.beam.span*s/2, -model.beam.height*s/2, model.beam.span*s, model.beam.height*s);
+  ctx.restore();
+
+  // arms（幾何: 回転中心→外広がり→落とし→縦棒→受面(内側)→返し(内＋上)）
+  function drawArm(side){
+    const isL=(side==='L'); const prm=model.arms[side];
+    const root = isL ? model.anchors.PIVOT_L : model.anchors.PIVOT_R;
+    // フレームに追従（梁方向をex, 上方向をey）
+    const ex=rot(psi,{x:1,y:0}), ey=rot(psi,{x:0,y:1});
+    const sgn = isL ? -1 : +1; // 外側が負/正
+    let p={x:root.x, y:root.y};
+    function step(dx,dy){ p={x:p.x+ex.x*dx+ey.x*dy, y:p.y+ex.y*dx+ey.y*dy}; ctx.lineTo(sx(p.x),sy(p.y)); return p; }
+    ctx.strokeStyle='#ff5a5a'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(sx(p.x),sy(p.y));
+    step(sgn*prm.out, -prm.drop_out);           // 外広がり＋落とし
+    step(0, -prm.drop_vert);                    // 更に下へ
+    const shelfStart=step(-sgn*prm.shelf_in, 0);// 受面は内側
+    const shelfEnd  =step(-sgn*prm.lip_in,  prm.lip_up); // 返し（内側＋上）
+    ctx.stroke();
+    // 受面のハイライト
+    ctx.strokeStyle='#ff9a9a'; ctx.lineWidth=8; ctx.beginPath(); ctx.moveTo(sx(shelfStart.x),sy(shelfStart.y)); ctx.lineTo(sx(shelfEnd.x),sy(shelfEnd.y)); ctx.stroke();
   }
+  drawArm('L'); drawArm('R');
+
+  // shelves（CSV指定の線分も表示）
+  ctx.strokeStyle='#ffb3b3'; ctx.lineWidth=2;
+  for(const seg of model.shelves){ ctx.beginPath(); ctx.moveTo(sx(seg.x0),sy(seg.y0)); ctx.lineTo(sx(seg.x1),sy(seg.y1)); ctx.stroke(); }
+
+  // CAB
+  ctx.save(); ctx.translate(sx(cx), sy(cy)); ctx.rotate(-phi);
+  ctx.fillStyle='rgba(127,182,255,0.9)'; ctx.fillRect(-model.cab.W*s/2, +model.cab.H*s/2 - model.cab.H*s, model.cab.W*s, model.cab.H*s);
+  ctx.restore();
 }
 
-// ===== UI =====
-const layersDiv=document.getElementById('layers');
-function buildLayerUI(){
-  layersDiv.innerHTML="";
-  if(!model){ layersDiv.textContent="未読込"; return; }
-  const L=[...new Set(model.layers)]; if(!L.length){ layersDiv.textContent="レイヤ情報なし"; return; }
-  L.forEach(name=>{
-    const wrap=document.createElement('div'); wrap.className='layer';
-    const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=(showLayer[name]!==false);
-    cb.onchange=()=>{ showLayer[name]=cb.checked; fitToView(); };
-    const sw=document.createElement('div'); sw.className='sw'; sw.style.background=model.colors[name];
-    const lab=document.createElement('span'); lab.textContent=name;
-    wrap.append(cb, sw, lab); layersDiv.appendChild(wrap);
-  });
-}
-function info(s){ document.getElementById('info').textContent=s; }
-async function loadFromPath(p){
-  const url=encodeURI(p); const res=await fetch(url);
-  if(!res.ok) throw new Error(`fetch失敗: ${res.status} ${res.statusText} (${url})`);
-  const text=await res.text(); model=parseDXF(text);
-  buildLayerUI(); fitToView();
-  info(`${model.layers.length} レイヤ / ${model.entities.length} エンティティ（ブロック対応）`);
+// ========================= ループ =========================
+let last=performance.now(), acc=0;
+function loop(now){
+  const el=(now-last)/1000; last=now;
+  if(!paused){ acc+=Math.min(el,0.12); const dt=model.sim.dt; while(acc>=dt){ step(); t+=dt; acc-=dt; } }
+  draw(); requestAnimationFrame(loop);
 }
 
-// Hooks
-document.getElementById('load').onclick=async()=>{ try{ await loadFromPath(document.getElementById('path').value.trim()); } catch(e){ console.error(e); info(`読込エラー: ${e.message}`); } };
-document.getElementById('file').onchange=async(e)=>{ const f=e.target.files[0]; if(!f) return; const text=await f.text(); model=parseDXF(text); buildLayerUI(); fitToView(); info(`ローカル読込: ${f.name} / ${model.layers.length} レイヤ / ${model.entities.length} 件`); };
-document.getElementById('fit').onclick=()=>fitToView();
-document.getElementById('reset').onclick=()=>resetView();
-document.getElementById('grid').onchange=(e)=>{ showGrid=e.target.checked; draw(); };
-document.getElementById('axes').onchange=(e)=>{ showAxes=e.target.checked; draw(); };
-document.getElementById('showtext').onchange=(e)=>{ showText=e.target.checked; fitToView(); };
-document.getElementById('skipAnno').onchange=(e)=>{ skipAnno=e.target.checked; fitToView(); };
+// ========================= UI（読込・操作） =========================
+function setStatus(s){ document.getElementById('status').textContent=s; }
 
-// パン/ズーム
-let dragging=false,lastX=0,lastY=0;
-cv.addEventListener('mousedown',e=>{dragging=true; lastX=e.clientX; lastY=e.clientY;});
-window.addEventListener('mouseup',()=>dragging=false);
-window.addEventListener('mousemove',e=>{ if(!dragging) return; const dx=e.clientX-lastX,dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY; ox+=dx; oy+=dy; draw(); });
-cv.addEventListener('wheel',e=>{ e.preventDefault(); const k=Math.exp(-e.deltaY*0.0015); const mx=e.offsetX*DPR,my=e.offsetY*DPR,wx=(mx-ox)/s,wy=(my-oy)/s; s=Math.max(0.02,Math.min(5,s*k)); ox=mx-wx*s; oy=my-wy*s; draw(); },{passive:false});
+async function loadUnifiedFromRepo(){
+  try{
+    const r=await fetch('要素数値情報.csv'); if(!r.ok){ setStatus('要素数値情報.csv が見つかりません'); return; }
+    parseUnifiedCSV(await r.text());
+    setStatus('要素数値情報.csv を読込みました');
+  }catch(e){ console.error(e); setStatus('読込エラー: '+e.message); }
+}
+async function applyUnifiedFromLocal(){
+  const f=document.getElementById('fileUnified').files[0];
+  if(!f){ setStatus('CSVファイルを選択してください'); return; }
+  const text=await f.text(); parseUnifiedCSV(text);
+  setStatus('ローカルCSVを反映しました');
+}
 
-// init
-ready=true; resize(); draw();
-loadFromPath(document.getElementById('path').value.trim()).catch(()=> info('左上の欄でパスを指定して「読み込み」を押してください。'));
+function togglePause(){ paused=!paused; document.getElementById('pause').textContent=paused?'再開':'一時停止'; }
+function doReset(){
+  // モデル値から状態のみリセット
+  xt=model.anchors.HOIST_TOP.x; vt=0;
+  xF=model.anchors.FRAME_COM.x; yF=model.anchors.FRAME_COM.y; vFx=0; vFy=0; psi=0; wF=0;
+  cx=model.cab.cg.x; cy=model.cab.cg.y; cvx=0; cvy=0; phi=0; omega=0;
+  solveChainPosition(6); t=0; paused=false;
+  document.getElementById('pause').textContent='一時停止';
+  setStatus('リセットしました');
+}
+
+document.getElementById('loadUnified').onclick=loadUnifiedFromRepo;
+document.getElementById('applyUnified').onclick=applyUnifiedFromLocal;
+document.getElementById('pause').onclick=togglePause;
+document.getElementById('reset').onclick=doReset;
+
+// 初期起動（既定の簡易値で起動しておき、読み込みで上書き）
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
