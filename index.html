@@ -6,32 +6,26 @@
 <title>DXF レイヤビューア（静的表示 / mm / Y上＋）</title>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="10" fill="%2310214a"/><path d="M10 46 L32 18 L54 46" stroke="%23ffd24d" stroke-width="6" fill="none"/></svg>'>
 <style>
-:root{
-  --bg:#0b1020; --panel:#121a33; --fg:#e8eef9; --muted:#9fb3d9; --accent:#3a76ff;
-  --grid:#1b2445; --axis:#2f8bff; --select:#ffd24d;
-}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,Meiryo,sans-serif}
-.wrap{display:grid; grid-template-columns:360px 1fr; gap:12px; padding:12px; height:100%}
-.card{background:var(--panel); border-radius:14px; box-shadow:0 10px 28px rgba(0,0,0,.35); overflow:hidden}
-.panel{padding:14px; display:flex; flex-direction:column; gap:10px}
-h1{font-size:18px; margin:0 0 6px}
-h2{font-size:13px; color:var(--muted); margin:10px 0 6px}
-.row{display:flex; gap:8px; align-items:center}
-.row label{min-width:88px; font-size:12px; color:var(--muted)}
-input[type=text]{flex:1; background:#0f1730; color:var(--fg); border:1px solid #24305a; border-radius:10px; padding:8px}
-.btn{background:linear-gradient(180deg,#3a76ff,#2b59d9); border:none; color:#fff; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600}
-.btn.ghost{background:#0f1730; border:1px solid #2a3a6a; color:var(--fg)}
-.kbd{display:inline-block; padding:2px 6px; border:1px solid #2a3a6a; border-radius:8px; color:#9fb3d9; font-size:12px}
-.small{font-size:12px; color:var(--muted)}
-.layer{display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px}
-.sw{width:14px; height:14px; border-radius:4px; border:1px solid #0006}
-hr{border:none; height:1px; background:#1c2343; margin:6px 0}
-canvas{width:100%; height:100%; display:block; cursor:grab}
-canvas:active{cursor:grabbing}
-.legend{font-size:12px; color:var(--muted)}
-.badge{background:#10214a; color:#9fb3d9; border:1px solid #213064; padding:2px 6px; border-radius:10px; font-size:12px}
+:root{ --bg:#0b1020; --panel:#121a33; --fg:#e8eef9; --muted:#9fb3d9; --accent:#3a76ff; --grid:#1b2445; --axis:#2f8bff; }
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Meiryo,sans-serif}
+.wrap{display:grid;grid-template-columns:360px 1fr;gap:12px;padding:12px;height:100%}
+.card{background:var(--panel);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.35);overflow:hidden}
+.panel{padding:14px;display:flex;flex-direction:column;gap:10px}
+h1{font-size:18px;margin:0 0 6px} h2{font-size:13px;color:var(--muted);margin:10px 0 6px}
+.row{display:flex;gap:8px;align-items:center}
+.row label{min-width:110px;font-size:12px;color:var(--muted)}
+input[type=text]{flex:1;background:#0f1730;color:var(--fg);border:1px solid #24305a;border-radius:10px;padding:8px}
+.btn{background:linear-gradient(180deg,#3a76ff,#2b59d9);border:none;color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:600}
+.btn.ghost{background:#0f1730;border:1px solid #2a3a6a;color:var(--fg)}
+.kbd{display:inline-block;padding:2px 6px;border:1px solid #2a3a6a;border-radius:8px;color:#9fb3d9;font-size:12px}
+.small{font-size:12px;color:var(--muted)}
+.layer{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px}
+.sw{width:14px;height:14px;border-radius:4px;border:1px solid #0006}
+hr{border:none;height:1px;background:#1c2343;margin:6px 0}
+canvas{width:100%;height:100%;display:block;cursor:grab} canvas:active{cursor:grabbing}
+.legend{font-size:12px;color:var(--muted)}
+.badge{background:#10214a;color:#9fb3d9;border:1px solid #213064;padding:2px 6px;border-radius:10px;font-size:12px}
 </style>
 </head>
 <body>
@@ -40,7 +34,7 @@ canvas:active{cursor:grabbing}
     <div>
       <h1>DXF レイヤビューア</h1>
       <div class="legend">
-        単位＝mm、座標系＝X右＋ / Y上＋。物理シミュレーションなし（純表示）。<br>
+        単位＝mm、座標系＝X右＋ / Y上＋。物理なしの純表示。<br>
         <span class="badge">操作</span> ドラッグ＝パン、<span class="kbd">ホイール</span>＝ズーム、<span class="kbd">F</span>＝フィット、<span class="kbd">R</span>＝初期表示。
       </div>
     </div>
@@ -62,9 +56,10 @@ canvas:active{cursor:grabbing}
     <div id="layers"></div>
 
     <h2>表示</h2>
-    <div class="row"><label>グリッド</label><input id="grid" type="checkbox" checked /><span class="small">間隔 200mm</span></div>
+    <div class="row"><label>グリッド</label><input id="grid" type="checkbox" checked /> <span class="small">間隔 200mm</span></div>
     <div class="row"><label>原点/軸</label><input id="axes" type="checkbox" checked /></div>
-    <div class="row"><label>注釈文字</label><input id="showtext" type="checkbox" checked /></div>
+    <div class="row"><label>注釈文字（TEXT/MTEXT）</label><input id="showtext" type="checkbox" /></div>
+    <div class="row"><label>注釈ブロックを除外</label><input id="skipAnno" type="checkbox" checked /> <span class="small">（\*D… / 引出線 / 注釈 / 寸法）</span></div>
 
     <hr>
     <div id="info" class="small">未読込</div>
@@ -75,209 +70,108 @@ canvas:active{cursor:grabbing}
 
 <script>
 // ===== Canvas =====
-const cv=document.getElementById('cv'); const ctx=cv.getContext('2d');
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const DPR=Math.max(1,window.devicePixelRatio||1); let ready=false;
-function resize(){ const r=cv.getBoundingClientRect(); const w=Math.max(2,Math.floor(r.width*DPR)),h=Math.max(2,Math.floor(r.height*DPR)); if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;} if(ready) draw(); }
+function resize(){const r=cv.getBoundingClientRect(); const w=Math.max(2,Math.floor(r.width*DPR)),h=Math.max(2,Math.floor(r.height*DPR)); if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;} if(ready) draw();}
 window.addEventListener('resize',resize);
 
-// ===== 便利関数 =====
+// ===== Utils =====
 const TAU=2*Math.PI;
 const aciTable={0:"#cccccc",1:"#ff0000",2:"#ffff00",3:"#00ff00",4:"#00ffff",5:"#0000ff",6:"#ff00ff",7:"#ffffff",8:"#808080",9:"#808080"};
 const aciColor=n=>aciTable[n]??(()=>{const h=(n%64)/64,s=0.7,v=0.95,i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-s*f),t=v*(1-s*(1-f)),[r,g,b]=[[v,t,p],[q,v,p],[p,v,t],[p,q,v],[t,p,v],[v,p,q]][i%6].map(x=>Math.round(x*255));return`rgb(${r},${g},${b})`;})();
-
-// 2Dアフィン行列 [a c e; b d f] を使う
-const I=[1,0,0, 0,1,0];
-const mulT=(A,B)=>[A[0]*B[0]+A[2]*B[1], A[1]*B[0]+A[3]*B[1], A[0]*B[2]+A[2]*B[3], A[1]*B[2]+A[3]*B[3], A[0]*B[4]+A[2]*B[5]+A[4], A[1]*B[4]+A[3]*B[5]+A[5]];
-const TRS=(tx,ty,ang=0,sx=1,sy=sx)=>{const c=Math.cos(ang),s=Math.sin(ang);return [c*sx,-s*sx, s*sy,c*sy, tx,ty];};
+const I=[1,0,0,0,1,0];
+const TRS=(tx,ty,ang=0,sx=1,sy=sx)=>{const c=Math.cos(ang),s=Math.sin(ang);return [c*sx,-s*sx,s*sy,c*sy,tx,ty];};
+const mulT=(A,B)=>[A[0]*B[0]+A[2]*B[1],A[1]*B[0]+A[3]*B[1],A[0]*B[2]+A[2]*B[3],A[1]*B[2]+A[3]*B[3],A[0]*B[4]+A[2]*B[5]+A[4],A[1]*B[4]+A[3]*B[5]+A[5]];
 const applyT=(T,p)=>({x:T[0]*p.x+T[2]*p.y+T[4], y:T[1]*p.x+T[3]*p.y+T[5]});
 
-// ===== DXF パーサ（BLOCKS/INSERT, POLYLINE+VERTEX, ELLIPSE, SPLINE 近似） =====
+// ===== DXF Parser（BLOCK/INSERT, POLYLINE+VERTEX, ELLIPSE, SPLINE 近似）=====
 function parseDXF(text){
   const L=text.split(/\r\n|\r|\n/); let i=0;
   const next=()=>{ if(i+1>=L.length) return null; const code=parseInt(L[i++].trim(),10); const val=(L[i++]??"").trim(); return {code,val}; };
-  const peek=()=>{ if(i+1>=L.length) return null; return {code:parseInt(L[i].trim(),10),val:(L[i+1]??"").trim()}; };
-
-  const layersColor={}; const blocks={}; const ents=[];
-  const readPairs=()=>{ const arr=[]; while(true){ const p=next(); if(!p) break; if(p.code===0){ i-=2; break; } arr.push(p); } return arr; };
   const take=(arr,c)=>arr.filter(p=>p.code===c).map(p=>p.val);
+  const readPairs=()=>{ const arr=[]; while(true){ const p=next(); if(!p) break; if(p.code===0){ i-=2; break; } arr.push(p);} return arr; };
 
-  function parseSimpleEntity(type, pairs, layer, colorIdx){
+  const layersColor={}, blocks={}, ents=[];
+  function parseSimple(type,pairs,layer,colorIdx){
     const by=c=>take(pairs,c);
-    if(type==="LINE"){
-      return {type:"line", layer, colorIdx, x1:+by(10)[0], y1:+by(20)[0], x2:+by(11)[0], y2:+by(21)[0]};
-    }
-    if(type==="LWPOLYLINE"){
-      const xs=by(10).map(Number), ys=by(20).map(Number), closed=(parseInt(by(70)[0]||"0",10)&1)===1;
-      const pts=xs.map((x,k)=>({x, y:ys[k]})); return {type:"polyline", layer, colorIdx, pts, closed};
-    }
-    if(type==="CIRCLE"){
-      return {type:"circle", layer, colorIdx, cx:+by(10)[0], cy:+by(20)[0], r:+by(40)[0]};
-    }
-    if(type==="ARC"){
-      return {type:"arc", layer, colorIdx, cx:+by(10)[0], cy:+by(20)[0], r:+by(40)[0], a0:(+by(50)[0]||0)*Math.PI/180, a1:(+by(51)[0]||0)*Math.PI/180};
-    }
-    if(type==="ELLIPSE"){
-      // 近似：パラメトリックをサンプリング
-      const cx=+by(10)[0], cy=+by(20)[0], ax=+by(11)[0], ay=+by(21)[0], ratio=+by(40)[0]||1;
-      const t0=+by(41)[0]||0, t1=+by(42)[0]||TAU;
-      const maj=Math.hypot(ax,ay), ang=Math.atan2(ay,ax), a=maj, b=maj*ratio;
-      const N=64, pts=[];
-      for(let k=0;k<=N;k++){
-        const t=t0+(t1-t0)*k/N; const x=a*Math.cos(t), y=b*Math.sin(t);
-        const c=Math.cos(ang), s=Math.sin(ang);
-        pts.push({x:cx + c*x - s*y, y:cy + s*x + c*y});
-      }
-      return {type:"polyline", layer, colorIdx, pts, closed:false};
-    }
-    if(type==="SPLINE"){
-      // 近似：制御点(10/20)をCatmull-Rom風に折れ線化（低負荷）
-      const xs=by(10).map(Number), ys=by(20).map(Number), P=xs.map((x,i)=>({x, y:ys[i]}));
-      if(P.length<=1) return null;
-      const pts=[P[0]];
-      for(let i=0;i<P.length-1;i++){
-        const p0=P[Math.max(0,i-1)], p1=P[i], p2=P[i+1], p3=P[Math.min(P.length-1,i+2)];
-        for(let t=0;t<=1;t+=0.25){
-          const t2=t*t,t3=t2*t;
-          const x=0.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3);
-          const y=0.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3);
-          pts.push({x,y});
-        }
-      }
-      pts.push(P[P.length-1]);
-      return {type:"polyline", layer, colorIdx, pts, closed:false};
-    }
-    if(type==="TEXT"||type==="MTEXT"){
-      const x=+by(10)[0], y=+by(20)[0]; const h=+(by(40)[0]||by(42)[0]||"40");
-      let s=take(pairs,1).concat(take(pairs,3)).concat(take(pairs,4)).join("").replace(/\\P/g,"\n");
-      return {type:"text", layer, colorIdx, x, y, h, text:s};
-    }
+    if(type==="LINE")     return {type:"line",layer,colorIdx,x1:+by(10)[0],y1:+by(20)[0],x2:+by(11)[0],y2:+by(21)[0]};
+    if(type==="LWPOLYLINE"){ const xs=by(10).map(Number),ys=by(20).map(Number),closed=(parseInt(by(70)[0]||"0",10)&1)===1; return {type:"polyline",layer,colorIdx,pts:xs.map((x,k)=>({x,y:ys[k]})),closed};}
+    if(type==="CIRCLE")  return {type:"circle",layer,colorIdx,cx:+by(10)[0],cy:+by(20)[0],r:+by(40)[0]};
+    if(type==="ARC")     return {type:"arc",layer,colorIdx,cx:+by(10)[0],cy:+by(20)[0],r:+by(40)[0],a0:(+by(50)[0]||0)*Math.PI/180,a1:(+by(51)[0]||0)*Math.PI/180};
+    if(type==="ELLIPSE"){ const cx=+by(10)[0],cy=+by(20)[0],ax=+by(11)[0],ay=+by(21)[0],ratio=+by(40)[0]||1,t0=+by(41)[0]||0,t1=+by(42)[0]||TAU,maj=Math.hypot(ax,ay),ang=Math.atan2(ay,ax),a=maj,b=maj*ratio,N=64,pts=[]; for(let k=0;k<=N;k++){const t=t0+(t1-t0)*k/N,x=a*Math.cos(t),y=b*Math.sin(t),c=Math.cos(ang),s=Math.sin(ang); pts.push({x:cx+c*x-s*y,y:cy+s*x+c*y});} return {type:"polyline",layer,colorIdx,pts,closed:false};}
+    if(type==="SPLINE"){ const xs=by(10).map(Number),ys=by(20).map(Number),P=xs.map((x,i)=>({x,y:ys[i]})); if(P.length<=1) return null; const pts=[P[0]]; for(let i=0;i<P.length-1;i++){ const p0=P[Math.max(0,i-1)],p1=P[i],p2=P[i+1],p3=P[Math.min(P.length-1,i+2)]; for(let t=0;t<=1;t+=0.25){ const t2=t*t,t3=t2*t; const x=0.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3); const y=0.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3); pts.push({x,y}); } } pts.push(P[P.length-1]); return {type:"polyline",layer,colorIdx,pts,closed:false};}
+    if(type==="TEXT"||type==="MTEXT"){ const x=+by(10)[0],y=+by(20)[0],h=+(by(40)[0]||by(42)[0]||"40"); let s=take(pairs,1).concat(take(pairs,3)).concat(take(pairs,4)).join("").replace(/\\P/g,"\n"); return {type:"text",layer,colorIdx,x,y,h,text:s};}
     return null;
   }
-
   function parseEntitiesInto(target){
     while(true){
       const p=next(); if(!p) break;
       if(p.code===0 && (p.val==="ENDSEC"||p.val==="ENDBLK")) break;
       if(p.code!==0) continue;
       const type=p.val;
-
-      if(type==="POLYLINE"){
-        // header
-        const head=[]; while(true){ const q=next(); if(!q) break; if(q.code===0){ i-=2; break; } head.push(q); }
-        const layer=(take(head,8)[0]||"0"); const colorIdx=(take(head,62)[0]!==undefined)?parseInt(take(head,62)[0],10):undefined;
-        const pts=[];
-        while(true){
-          const q=next(); if(!q) break;
-          if(q.code===0 && q.val==="VERTEX"){
-            const vp=readPairs(); const x=+take(vp,10)[0], y=+take(vp,20)[0];
-            pts.push({x,y});
-          }else if(q.code===0 && q.val==="SEQEND"){
-            break;
-          }else{
-            // 予期しない → スキップ
-          }
-        }
-        if(pts.length>=2) target.push({type:"polyline", layer, colorIdx, pts, closed:false});
-        continue;
-      }
-
-      if(type==="INSERT"){
-        const pairs=readPairs(); const by=c=>take(pairs,c);
-        const name=by(2)[0]; const layer=(by(8)[0]||"0"); const colorIdx=(by(62)[0]!==undefined)?parseInt(by(62)[0],10):undefined;
-        const x=+by(10)[0], y=+by(20)[0]; const sx=+(by(41)[0]||1), sy=+(by(42)[0]||sx); const ang=(+(by(50)[0]||0))*Math.PI/180;
-        target.push({type:"insert", layer, colorIdx, name, x, y, sx, sy, ang});
-        continue;
-      }
-
-      // others (simple)
+      if(type==="POLYLINE"){ const head=readPairs(); const layer=(take(head,8)[0]||"0"); const colorIdx=(take(head,62)[0]!==undefined)?parseInt(take(head,62)[0],10):undefined; const pts=[]; while(true){ const q=next(); if(!q) break; if(q.code===0&&q.val==="VERTEX"){ const vp=readPairs(); pts.push({x:+take(vp,10)[0],y:+take(vp,20)[0]}); } else if(q.code===0&&q.val==="SEQEND"){ break; } } if(pts.length>=2) target.push({type:"polyline",layer,colorIdx,pts,closed:false}); continue; }
+      if(type==="INSERT"){ const pairs=readPairs(), by=c=>take(pairs,c); target.push({type:"insert",layer:(by(8)[0]||"0"),colorIdx:(by(62)[0]!==undefined)?parseInt(by(62)[0],10):undefined,name:by(2)[0],x:+by(10)[0],y:+by(20)[0],sx:+(by(41)[0]||1),sy:+(by(42)[0]||by(41)[0]||1),ang:(+(by(50)[0]||0))*Math.PI/180}); continue; }
+      // DIMENSION/VIEWPORT/WIPEOUT/POINT 等は描画しない
       const pairs=readPairs(); const layer=(take(pairs,8)[0]||"0"); const colorIdx=(take(pairs,62)[0]!==undefined)?parseInt(take(pairs,62)[0],10):undefined;
-      const e=parseSimpleEntity(type,pairs,layer,colorIdx);
-      if(e) target.push(e);
+      const e=parseSimple(type,pairs,layer,colorIdx); if(e) target.push(e);
     }
   }
-
   while(true){
     const p=next(); if(!p) break;
     if(p.code===0 && p.val==="SECTION"){
+      // section name
       let name=""; while(true){ const q=next(); if(!q) break; if(q.code===2){ name=q.val; break; } if(q.code===0){ i-=2; break; } }
       if(name==="TABLES"){
-        // LAYER table
-        while(true){
-          const q=next(); if(!q) break; if(q.code===0&&q.val==="ENDSEC") break;
-          if(q.code===0&&q.val==="TABLE"){
-            let tname=""; let r; while((r=next())){ if(r.code===2){ tname=r.val; break; } }
-            if(tname==="LAYER"){
-              while((r=next())){
-                if(r.code===0&&r.val==="ENDTAB") break;
-                if(r.code===0&&r.val==="LAYER"){
-                  const pairs=readPairs();
-                  const name=take(pairs,2)[0]; const col=(take(pairs,62)[0]!==undefined)?parseInt(take(pairs,62)[0],10):7;
-                  if(name) layersColor[name]=col;
-                }
-              }
-            } else { while((r=next())){ if(r.code===0&&r.val==="ENDTAB") break; } }
-          }
+        while(true){ const q=next(); if(!q) break; if(q.code===0&&q.val==="ENDSEC") break;
+          if(q.code===0&&q.val==="TABLE"){ let tname=""; let r; while((r=next())){ if(r.code===2){ tname=r.val; break; } }
+            if(tname==="LAYER"){ while((r=next())){ if(r.code===0&&r.val==="ENDTAB") break; if(r.code===0&&r.val==="LAYER"){ const ps=readPairs(); const nm=take(ps,2)[0]; const col=(take(ps,62)[0]!==undefined)?parseInt(take(ps,62)[0],10):7; if(nm) layersColor[nm]=col; } } }
+            else { while((r=next())){ if(r.code===0&&r.val==="ENDTAB") break; } }
         }
-      }
-      else if(name==="BLOCKS"){
-        while(true){
-          const q=next(); if(!q) break; if(q.code===0&&q.val==="ENDSEC") break;
-          if(q.code===0&&q.val==="BLOCK"){
-            const head=readPairs(); const bname=take(head,2)[0]||take(head,3)[0]; // 2 or 3 に名前が入る場合あり
-            const items=[]; parseEntitiesInto(items); // ここはENDBLKで抜ける
-            if(bname) blocks[bname]=items;
-          }
+      } else if(name==="BLOCKS"){
+        while(true){ const q=next(); if(!q) break; if(q.code===0&&q.val==="ENDSEC") break;
+          if(q.code===0&&q.val==="BLOCK"){ const head=readPairs(); const bname=take(head,2)[0]||take(head,3)[0]; const items=[]; parseEntitiesInto(items); if(bname) blocks[bname]=items; }
         }
-      }
-      else if(name==="ENTITIES"){
+      } else if(name==="ENTITIES"){
         parseEntitiesInto(ents);
-      }
-      else {
-        // 他セクションは読み飛ばし
-        while(true){ const q=next(); if(!q) break; if(q.code===0&&q.val==="ENDSEC") break; }
+      } else {
+        // skip others
+        while(true){ const q2=next(); if(!q2) break; if(q2.code===0&&q2.val==="ENDSEC") break; }
       }
     }
   }
-
-  const layers=[...new Set(
-    ents.flatMap(e => e.type==="insert" ? [e.layer, ...(blocks[e.name]?.map(be=>be.layer)||[])] : [e.layer])
-  )].filter(Boolean).sort();
-
+  const layers=[...new Set(ents.flatMap(e=>e.type==="insert" ? [e.layer, ...(blocks[e.name]?.map(be=>be.layer)||[])] : [e.layer]))].filter(Boolean).sort();
   const colors={}; layers.forEach(n=>{ const aci=(layersColor[n]!==undefined)?layersColor[n]:7; colors[n]=aciColor(aci); });
-
   return {entities:ents, layers, colors, blocks};
 }
 
-// ===== Viewer state =====
-let model=null;               // {entities, layers, colors, blocks}
-let showLayer={};             // layer -> boolean
-let showGrid=true, showAxes=true, showText=true;
+// ===== State =====
+let model=null;
+let showLayer={};
+let showGrid=true, showAxes=true, showText=false; // ← 文字は既定OFF
+let skipAnno=true;                                  // ← 注釈ブロック除外ON
 
-let s=0.25;                   // pixel/mm
-let ox=0, oy=0;               // 画面原点
-let worldBBox=null;
+let s=0.25, ox=0, oy=0; let worldBBox=null;
+const sx_=(x)=>ox + x*s, sy_=(y)=>oy - y*s;
 
-// 画面変換
-const sx_=(x)=>ox + x*s;
-const sy_=(y)=>oy - y*s;
+// 注釈ブロック判定
+const isAnnoBlock = (name)=> !!name && /(^\*D\d+)|注釈|引出|寸法/i.test(name);
 
-// bbox（INSERT 再帰）
-function addBBox(b, x,y){ if(x<b.minx) b.minx=x; if(x>b.maxx) b.maxx=x; if(y<b.miny) b.miny=y; if(y>b.maxy) b.maxy=y; }
-function bboxOfEntity(e, T, blocks){
+// BBox（INSERT 再帰・注釈除外対応）
+function addBBox(b,x,y){ if(x<b.minx) b.minx=x; if(x>b.maxx) b.maxx=x; if(y<b.miny) b.miny=y; if(y>b.maxy) b.maxy=y; }
+function bboxOfEntity(e,T){
   const b={minx:Infinity,miny:Infinity,maxx:-Infinity,maxy:-Infinity};
   const push=(p)=>addBBox(b,p.x,p.y);
-  const drawPoly=(pts)=>pts.forEach(p=>push(applyT(T,p)));
-  if(e.type==="line"){ drawPoly([{x:e.x1,y:e.y1},{x:e.x2,y:e.y2}]); }
-  else if(e.type==="polyline"){ drawPoly(e.pts); }
-  else if(e.type==="circle"||e.type==="arc"){
-    const N=64, a0=(e.a0??0), a1=(e.a1??TAU); const step=Math.max(1,Math.floor(Math.abs(a1-a0)*N/TAU));
-    for(let k=0;k<=step;k++){ const a=a0+(a1-a0)*k/step; const p={x:e.cx+e.r*Math.cos(a), y:e.cy+e.r*Math.sin(a)}; push(applyT(T,p)); }
-  }
-  else if(e.type==="text"){ push(applyT(T,{x:e.x,y:e.y})); }
-  else if(e.type==="insert"){
-    const B=blocks[e.name]; if(!B) return b;
+  const line=(p1,p2)=>{push(applyT(T,p1)); push(applyT(T,p2));};
+  if(e.type==="line"){ line({x:e.x1,y:e.y1},{x:e.x2,y:e.y2}); return b; }
+  if(e.type==="polyline"){ e.pts.forEach(p=>push(applyT(T,p))); return b; }
+  if(e.type==="circle"||e.type==="arc"){ const N=64,a0=(e.a0??0),a1=(e.a1??TAU),step=Math.max(8,Math.floor(Math.abs(a1-a0)*N/TAU)); for(let k=0;k<=step;k++){ const a=a0+(a1-a0)*k/step; push(applyT(T,{x:e.cx+e.r*Math.cos(a), y:e.cy+e.r*Math.sin(a)})); } return b; }
+  if(e.type==="text" && showText){ push(applyT(T,{x:e.x,y:e.y})); return b; }
+  if(e.type==="insert"){
+    if(skipAnno && isAnnoBlock(e.name)) return b;
+    const B=model.blocks[e.name]; if(!B) return b;
     const TT=mulT(T, TRS(e.x,e.y,e.ang,e.sx,e.sy));
-    for(const be of B){ const bb=bboxOfEntity(be, TT, blocks); addBBox(b,bb.minx,bb.miny); addBBox(b,bb.maxx,bb.maxy); }
+    for(const be of B){ if(showLayer[be.layer]===false) continue; const bb=bboxOfEntity(be, TT); addBBox(b,bb.minx,bb.miny); addBBox(b,bb.maxx,bb.maxy); }
+    return b;
   }
   return b;
 }
@@ -285,16 +179,18 @@ function computeBBox(){
   if(!model){ worldBBox=null; return; }
   const b={minx:Infinity,miny:Infinity,maxx:-Infinity,maxy:-Infinity};
   for(const e of model.entities){
-    if(e.type!=="insert" && showLayer[e.layer]===false) continue; // top のレイヤフィルタ
-    const bb=bboxOfEntity(e, I, model.blocks);
-    addBBox(b,bb.minx,bb.miny); addBBox(b,bb.maxx,bb.maxy);
+    if(e.type!=="insert" && showLayer[e.layer]===false) continue;
+    if(e.type==="text" && !showText) continue;
+    if(e.type==="insert" && skipAnno && isAnnoBlock(e.name)) continue;
+    const bb=bboxOfEntity(e,I); addBBox(b,bb.minx,bb.miny); addBBox(b,bb.maxx,bb.maxy);
   }
-  if(!isFinite(b.minx)){ worldBBox={minx:-1000,maxx:1000,miny:-1000,maxy:1000}; }
+  if(!isFinite(b.minx)) worldBBox={minx:-1000,maxx:1000,miny:-1000,maxy:1000};
   else worldBBox=b;
 }
 function fitToView(){
   if(!model) return;
-  const m=worldBBox; const W=cv.width,H=cv.height; const margin=60;
+  computeBBox();
+  const m=worldBBox; const W=cv.width,H=cv.height,margin=60;
   const sx=(W-2*margin)/(m.maxx-m.minx||1), sy=(H-2*margin)/(m.maxy-m.miny||1);
   s=Math.max(0.1, Math.min(sx, sy));
   const cx=(m.minx+m.maxx)/2, cy=(m.miny+m.maxy)/2;
@@ -305,8 +201,7 @@ function resetView(){ s=0.25; ox=cv.width*0.5; oy=cv.height*0.6; draw(); }
 
 function drawGrid(){
   const step=200; const m=worldBBox||{minx:-4000,maxx:4000,miny:-2500,maxy:2500};
-  const gx0=Math.floor(m.minx/step)*step, gx1=Math.ceil(m.maxx/step)*step;
-  const gy0=Math.floor(m.miny/step)*step, gy1=Math.ceil(m.maxy/step)*step;
+  const gx0=Math.floor(m.minx/step)*step, gx1=Math.ceil(m.maxx/step)*step, gy0=Math.floor(m.miny/step)*step, gy1=Math.ceil(m.maxy/step)*step;
   ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--grid'); ctx.lineWidth=1;
   for(let x=gx0;x<=gx1;x+=step){ ctx.beginPath(); ctx.moveTo(sx_(x), sy_(gy0)); ctx.lineTo(sx_(x), sy_(gy1)); ctx.stroke(); }
   for(let y=gy0;y<=gy1;y+=step){ ctx.beginPath(); ctx.moveTo(sx_(gx0), sy_(y)); ctx.lineTo(sx_(gx1), sy_(y)); ctx.stroke(); }
@@ -315,114 +210,71 @@ function drawAxes(){
   ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--axis'); ctx.lineWidth=2;
   ctx.beginPath(); ctx.moveTo(sx_(0), sy_(-10000)); ctx.lineTo(sx_(0), sy_(10000)); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(sx_(-10000), sy_(0)); ctx.lineTo(sx_(10000), sy_(0)); ctx.stroke();
-  ctx.fillStyle="#ffffff"; ctx.beginPath(); ctx.arc(sx_(0), sy_(0), 4, 0, TAU); ctx.fill();
+  ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(sx_(0), sy_(0), 4, 0, TAU); ctx.fill();
 }
-
-// 再帰描画
-function drawEntity(e, T){
-  const col = model.colors[e.layer]||"#ffffff"; ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=2;
-  if(e.type==="line"){
-    const p1=applyT(T,{x:e.x1,y:e.y1}), p2=applyT(T,{x:e.x2,y:e.y2});
-    ctx.beginPath(); ctx.moveTo(sx_(p1.x), sy_(p1.y)); ctx.lineTo(sx_(p2.x), sy_(p2.y)); ctx.stroke(); return;
-  }
-  if(e.type==="polyline"){
-    if(e.pts.length<2) return;
-    ctx.beginPath(); const a=applyT(T,e.pts[0]); ctx.moveTo(sx_(a.x), sy_(a.y));
-    for(let k=1;k<e.pts.length;k++){ const p=applyT(T,e.pts[k]); ctx.lineTo(sx_(p.x), sy_(p.y)); }
-    if(e.closed) ctx.closePath(); ctx.stroke(); return;
-  }
-  if(e.type==="circle"||e.type==="arc"){
-    // 等方スケール前提
-    const c=applyT(T,{x:e.cx,y:e.cy});
-    const a0=-(e.a0??0), a1=-(e.a1??TAU); // Y反転のため符号反転
-    const r=e.r*s*Math.hypot(T[0],T[3]); // おおよそ
-    ctx.beginPath(); if(e.type==="circle"){ ctx.arc(sx_(c.x), sy_(c.y), r, 0, TAU); } else { ctx.arc(sx_(c.x), sy_(c.y), r, a0, a1, a1<a0); } ctx.stroke(); return;
-  }
-  if(e.type==="text" && showText){
-    const p=applyT(T,{x:e.x,y:e.y}); ctx.font=`${Math.max(10, e.h*s)}px ui-sans-serif`; ctx.fillStyle=col;
-    for(const [idx,ln] of String(e.text||"").split(/\r?\n/).entries()){ ctx.fillText(ln, sx_(p.x), sy_(p.y - idx*e.h)); }
-    return;
-  }
-  if(e.type==="insert"){
-    const B=model.blocks[e.name]; if(!B) return;
-    const TT=mulT(T, TRS(e.x,e.y,e.ang,e.sx,e.sy));
-    for(const be of B){ if(showLayer[be.layer]===false) continue; drawEntity(be, TT); }
-    return;
-  }
+function drawEntity(e,T){
+  const col=model.colors[e.layer]||"#ffffff"; ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=2;
+  if(e.type==="line"){ const p1=applyT(T,{x:e.x1,y:e.y1}),p2=applyT(T,{x:e.x2,y:e.y2}); ctx.beginPath(); ctx.moveTo(sx_(p1.x),sy_(p1.y)); ctx.lineTo(sx_(p2.x),sy_(p2.y)); ctx.stroke(); return; }
+  if(e.type==="polyline"){ if(e.pts.length<2) return; ctx.beginPath(); const a=applyT(T,e.pts[0]); ctx.moveTo(sx_(a.x),sy_(a.y)); for(let k=1;k<e.pts.length;k++){ const p=applyT(T,e.pts[k]); ctx.lineTo(sx_(p.x),sy_(p.y)); } if(e.closed) ctx.closePath(); ctx.stroke(); return; }
+  if(e.type==="circle"||e.type==="arc"){ const c=applyT(T,{x:e.cx,y:e.cy}); const a0=-(e.a0??0),a1=-(e.a1??TAU); const r=e.r*s*Math.hypot(T[0],T[3]); ctx.beginPath(); if(e.type==="circle"){ ctx.arc(sx_(c.x),sy_(c.y),r,0,TAU); } else { ctx.arc(sx_(c.x),sy_(c.y),r,a0,a1,a1<a0); } ctx.stroke(); return; }
+  if(e.type==="text" && showText){ const p=applyT(T,{x:e.x,y:e.y}); ctx.font=`${Math.max(10,e.h*s)}px ui-sans-serif`; ctx.fillStyle=col; for(const [i,ln] of String(e.text||"").split(/\r?\n/).entries()){ ctx.fillText(ln, sx_(p.x), sy_(p.y - i*e.h)); } return; }
+  if(e.type==="insert"){ if(skipAnno && isAnnoBlock(e.name)) return; const B=model.blocks[e.name]; if(!B) return; const TT=mulT(T, TRS(e.x,e.y,e.ang,e.sx,e.sy)); for(const be of B){ if(showLayer[be.layer]===false) continue; drawEntity(be, TT); } }
 }
-
 function draw(){
   const W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H);
   if(showGrid) drawGrid(); if(showAxes) drawAxes();
   if(!model) return;
   for(const e of model.entities){
     if(e.type!=="insert" && showLayer[e.layer]===false) continue;
-    drawEntity(e, I);
+    if(e.type==="text" && !showText) continue;
+    drawEntity(e,I);
   }
 }
 
-// ===== レイヤ UI / 読み込み =====
+// ===== UI =====
 const layersDiv=document.getElementById('layers');
 function buildLayerUI(){
   layersDiv.innerHTML="";
   if(!model){ layersDiv.textContent="未読込"; return; }
-  const L=[...new Set(model.layers)];
-  if(!L.length){ layersDiv.textContent="レイヤ情報なし"; return; }
+  const L=[...new Set(model.layers)]; if(!L.length){ layersDiv.textContent="レイヤ情報なし"; return; }
   L.forEach(name=>{
     const wrap=document.createElement('div'); wrap.className='layer';
     const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=(showLayer[name]!==false);
-    cb.onchange=()=>{ showLayer[name]=cb.checked; computeBBox(); draw(); };
+    cb.onchange=()=>{ showLayer[name]=cb.checked; fitToView(); };
     const sw=document.createElement('div'); sw.className='sw'; sw.style.background=model.colors[name];
     const lab=document.createElement('span'); lab.textContent=name;
     wrap.append(cb, sw, lab); layersDiv.appendChild(wrap);
   });
 }
-
 function info(s){ document.getElementById('info').textContent=s; }
 async function loadFromPath(p){
-  const url=encodeURI(p);
-  const res=await fetch(url);
+  const url=encodeURI(p); const res=await fetch(url);
   if(!res.ok) throw new Error(`fetch失敗: ${res.status} ${res.statusText} (${url})`);
-  const text=await res.text();
-  model=parseDXF(text);
-  computeBBox(); fitToView(); buildLayerUI();
+  const text=await res.text(); model=parseDXF(text);
+  buildLayerUI(); fitToView();
   info(`${model.layers.length} レイヤ / ${model.entities.length} エンティティ（ブロック対応）`);
 }
 
-document.getElementById('load').onclick=async()=>{
-  try{ await loadFromPath(document.getElementById('path').value.trim()); }
-  catch(e){ console.error(e); info(`読込エラー: ${e.message}`); }
-};
-document.getElementById('file').onchange=async(e)=>{
-  const f=e.target.files[0]; if(!f) return;
-  const text=await f.text(); model=parseDXF(text);
-  computeBBox(); fitToView(); buildLayerUI();
-  info(`ローカル読込: ${f.name} / ${model.layers.length} レイヤ / ${model.entities.length} 件`);
-};
+// Hooks
+document.getElementById('load').onclick=async()=>{ try{ await loadFromPath(document.getElementById('path').value.trim()); } catch(e){ console.error(e); info(`読込エラー: ${e.message}`); } };
+document.getElementById('file').onchange=async(e)=>{ const f=e.target.files[0]; if(!f) return; const text=await f.text(); model=parseDXF(text); buildLayerUI(); fitToView(); info(`ローカル読込: ${f.name} / ${model.layers.length} レイヤ / ${model.entities.length} 件`); };
 document.getElementById('fit').onclick=()=>fitToView();
 document.getElementById('reset').onclick=()=>resetView();
-
 document.getElementById('grid').onchange=(e)=>{ showGrid=e.target.checked; draw(); };
 document.getElementById('axes').onchange=(e)=>{ showAxes=e.target.checked; draw(); };
-document.getElementById('showtext').onchange=(e)=>{ showText=e.target.checked; draw(); };
+document.getElementById('showtext').onchange=(e)=>{ showText=e.target.checked; fitToView(); };
+document.getElementById('skipAnno').onchange=(e)=>{ skipAnno=e.target.checked; fitToView(); };
 
 // パン/ズーム
-let dragging=false, lastX=0, lastY=0;
+let dragging=false,lastX=0,lastY=0;
 cv.addEventListener('mousedown',e=>{dragging=true; lastX=e.clientX; lastY=e.clientY;});
 window.addEventListener('mouseup',()=>dragging=false);
-window.addEventListener('mousemove',e=>{
-  if(!dragging) return; const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY; ox+=dx; oy+=dy; draw();
-});
-cv.addEventListener('wheel',e=>{
-  e.preventDefault(); const k=Math.exp(-e.deltaY*0.0015);
-  const mx=e.offsetX*DPR,my=e.offsetY*DPR; const wx=(mx-ox)/s, wy=(my-oy)/s;
-  s=Math.max(0.02, Math.min(5, s*k)); ox=mx-wx*s; oy=my-wy*s; draw();
-},{passive:false});
+window.addEventListener('mousemove',e=>{ if(!dragging) return; const dx=e.clientX-lastX,dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY; ox+=dx; oy+=dy; draw(); });
+cv.addEventListener('wheel',e=>{ e.preventDefault(); const k=Math.exp(-e.deltaY*0.0015); const mx=e.offsetX*DPR,my=e.offsetY*DPR,wx=(mx-ox)/s,wy=(my-oy)/s; s=Math.max(0.02,Math.min(5,s*k)); ox=mx-wx*s; oy=my-wy*s; draw(); },{passive:false});
 
-// 初期化
+// init
 ready=true; resize(); draw();
-loadFromPath(document.getElementById('path').value.trim())
-  .catch(e=>{ console.warn(e); info('既定DXFが見つかりません。左上の欄でパスを指定して「読み込み」。'); });
+loadFromPath(document.getElementById('path').value.trim()).catch(()=> info('左上の欄でパスを指定して「読み込み」を押してください。'));
 </script>
 </body>
 </html>
