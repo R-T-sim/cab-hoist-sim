@@ -179,7 +179,6 @@ function parseUnifiedCSV(text){
 }
 
 // ===== チェーン拘束（剛体長） =====
-function I_frame(){return I_rect(model.beam.mass, model.beam.span, model.beam.height);}
 function solveChainPosition(iter=3){
   for(let k=0;k<iter;k++){
     const H={x:xt,y:model.anchors.HOIST_ANCHOR.y}, A=posF(model.anchors.CHAIN_A_LOCAL);
@@ -317,7 +316,8 @@ function step(){
   cvy += -model.damp.cab_lin*cvy*dt;
 
   cx += cvx*dt; cy += cvy*dt;
-  const Icab=I_cab(); omega += (-model.cab.cphi*omega/Icab)*dt; phi += omega*dt;
+  omega += (-model.cab.cphi*omega/Icab)*dt; phi += omega*dt;
+  phi   += omega * dt;
 }
 
 // ===== 描画 =====
