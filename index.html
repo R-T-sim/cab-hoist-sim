@@ -101,10 +101,9 @@ let shelves=[], lips=[], armPolys={L:[],R:[]}, armRoots={L:{x:0,y:0},R:{x:0,y:0}
 function buildArmsAndSurfaces(){
   shelves=[]; lips=[]; armPolys.L=[]; armPolys.R=[];
   const ex=rot(psi,{x:1,y:0}), ey=rot(psi,{x:0,y:1});
-
   function build(side){
     const prm=model.arms[side]; const sgn=(side==='L')?-1:+1;
-    const pivotLocal = (side==='L')?model.anchors.PIVOT_L_LOCAL:model.anchors.PIVOT_R_LOCAL;
+    const pivotLocal=(side==='L')?model.anchors.PIVOT_L_LOCAL:model.anchors.PIVOT_R_LOCAL;
     let p=posF(pivotLocal); armRoots[side]=p;
     const poly=[{x:p.x,y:p.y}];
     function step(dx,dy){ p={x:p.x+ex.x*dx+ey.x*dy, y:p.y+ex.y*dx+ey.y*dy}; poly.push({x:p.x,y:p.y}); return p; }
@@ -117,10 +116,10 @@ function buildArmsAndSurfaces(){
     const shelfEnd={x:p.x,y:p.y};
     shelves.push({p0:shelfStart,p1:shelfEnd, n:ey, t:ex});
 
-    const lipStart={x:p.x,y:p.y};
+    const lipStart={x:p.x,y:p.y}; // 返し基点（水平棚の端）
     step(0, prm.lip_up);
     const lipEnd={x:p.x,y:p.y};
-    const n_out={x:sgn*ex.x, y:sgn*ex.y}; // 外向き
+    const n_out={x:sgn*ex.x, y:sgn*ex.y};
     lips.push({p0:lipStart,p1:lipEnd, n:n_out, t:ey});
 
     if(side==='L') armPolys.L=poly; else armPolys.R=poly;
@@ -140,7 +139,7 @@ function parseUnifiedCSV(text){
   const L1=get('吊具天秤長さ_L1',2340), H1=get('吊具天秤高さ_H1',120), m1=get('吊具天秤重量_m1',180);
   const frameCOM={x:cf.x, y:cf.y - H1/2};
 
-  // ★ 支点Yは常に天秤下面（-H1/2）に固定。XはCSVの相対。
+  // 支点Yは常に天秤下面（-H1/2）に固定。XはCSV相対。
   const PLw={x:get('左側アーム回転中心座標_X',-700), y:get('左側アーム回転中心座標_Y',-620)};
   const PRw={x:get('右側アーム回転中心座標_X', 700), y:get('右側アーム回転中心座標_Y',-620)};
   const pivotLocalY = -H1/2;
@@ -159,21 +158,28 @@ function parseUnifiedCSV(text){
   model.cab.cg.x = get('CAB重心_Gcab_X座標',7);
   model.cab.cg.y = get('CAB重心_Gcab_Y座標',-1800);
 
-  // 状態初期化（棚中心基準でCABをセット）
+  // 状態初期化（返しxで中央寄せ、棚高さでy決定）
   xt=HA.x; vt=0; xF=frameCOM.x; yF=frameCOM.y; psi=0; wF=0; vFx=0; vFy=0;
   phi=0; omega=0; cvx=0; cvy=0;
 
   buildArmsAndSurfaces();
-  const midX = shelves.reduce((s,seg)=> s + (seg.p0.x+seg.p1.x)/2, 0) / shelves.length;
-  const midY = shelves.reduce((s,seg)=> s + (seg.p0.y+seg.p1.y)/2, 0) / shelves.length;
-  cx = midX;
-  cy = midY - (model.cab.H/2 - model.cab.notch);
 
-  // チェーン長を満たす微調整
+  // ★ ここが肝：左右の返し基点 x（lips[].p0.x）で中央寄せ
+  const lipXs = lips.map(seg=>seg.p0.x);
+  const lipL = Math.min(...lipXs), lipR = Math.max(...lipXs);
+  const midX = (lipL + lipR)/2;
+
+  // 棚高さは水平方向なので平均でよい
+  const shelfY = shelves.reduce((s,seg)=> s + ((seg.p0.y+seg.p1.y)/2), 0) / shelves.length;
+
+  cx = midX;
+  cy = shelfY - (model.cab.H/2 - model.cab.notch);
+
+  // チェーン長拘束を満たす微調整（天秤位置を微修正）
   solveChainPosition(6);
 
   t=0;
-  setStatus('要素数値情報.csv を読込みました');
+  setStatus('要素数値情報.csv を読込みました（初期：返し中央・棚高さに正確整列）');
 }
 
 // ===== チェーン拘束（剛体長） =====
@@ -201,7 +207,7 @@ function solveChainVelocity(){
   wF  += ( (rAm_m.x*(-J*n.y) - rAm_m.y*(-J*n.x)) )/I_frame();
 }
 
-// ===== ステップ =====
+// ===== ステップ（物理） =====
 let keyL=false,keyR=false,brake=false;
 addEventListener('keydown',e=>{if(e.code==='ArrowLeft')keyL=true;if(e.code==='ArrowRight')keyR=true;if(e.code==='Space')brake=true;if(e.key==='p'||e.key==='P')togglePause();if(e.key==='r'||e.key==='R')doReset();});
 addEventListener('keyup',e=>{if(e.code==='ArrowLeft')keyL=false;if(e.code==='ArrowRight')keyR=false;if(e.code==='Space')brake=false;});
@@ -230,7 +236,7 @@ function step(){
   // 積分
   xF += vFx*dt; yF += vFy*dt; psi += wF*dt;
 
-  // 受面を再生成
+  // 受面再生成
   buildArmsAndSurfaces();
 
   // ===== CAB × 棚/返し（多点接触） =====
@@ -246,15 +252,15 @@ function step(){
     const K=1/model.cab.mass + ((r.x*n.y - r.y*n.x)**2)/Icab;
     const Jn=Math.max(0, -vrelN/K);
     cvx += (1000*Jn*n.x)/model.cab.mass; cvy += (1000*Jn*n.y)/model.cab.mass; omega += ((r.x*Jn*n.y - r.y*Jn*n.x))/Icab;
-    // 摩擦
     const vrelT=(vP.x*tdir.x + vP.y*tdir.y)/1000;
     const Kt=1/model.cab.mass + ((r.x*tdir.y - r.y*tdir.x)**2)/Icab;
     const Jt_unc=-vrelT/Kt; const mu=model.cab.mu; const Jt=clamp(Jt_unc,-mu*Jn,mu*Jn);
     cvx += (1000*Jt*tdir.x)/model.cab.mass; cvy += (1000*Jt*tdir.y)/model.cab.mass; omega += ((r.x*Jt*tdir.y - r.y*Jt*tdir.x))/Icab;
   }
 
-  // 棚：CAB上端5点
   const xSamples=[-0.5, -0.25, 0, 0.25, 0.5].map(k=>k*model.cab.W*0.98);
+
+  // 棚
   for(const seg of shelves){
     const sVec=sub(seg.p1, seg.p0); const Ls=len(sVec)||1;
     const tdir={x:sVec.x/Ls, y:sVec.y/Ls}; const n=seg.n;
@@ -268,7 +274,7 @@ function step(){
     }
   }
 
-  // 返し：左右コーナ近傍2点
+  // 返し（左右コーナ付近）
   const corner=[-0.5*model.cab.W*0.98, +0.5*model.cab.W*0.98];
   for(const seg of lips){
     const sVec=sub(seg.p1, seg.p0); const Ls=len(sVec)||1;
@@ -318,7 +324,7 @@ function draw(){
   ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fill();
   ctx.restore();
 
-  // CAB（先に描く）
+  // CAB（先に描画）
   ctx.save(); ctx.translate(sx(cx), sy(cy)); ctx.rotate(-phi);
   ctx.fillStyle='rgba(127,182,255,0.92)'; ctx.fillRect(-model.cab.W*s/2, +model.cab.H*s/2 - model.cab.H*s, model.cab.W*s, model.cab.H*s);
   ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fill();
@@ -334,7 +340,7 @@ function draw(){
   }
   drawPoly(armPolys.L); drawPoly(armPolys.R);
 
-  // shelves / lips（最後に前面）
+  // shelves / lips（前面）
   ctx.strokeStyle='#ff9a9a'; ctx.lineWidth=8;
   for(const seg of shelves){ ctx.beginPath(); ctx.moveTo(sx(seg.p0.x),sy(seg.p0.y)); ctx.lineTo(sx(seg.p1.x),sy(seg.p1.y)); ctx.stroke(); }
   ctx.strokeStyle='#ffd0d0'; ctx.lineWidth=6;
@@ -369,20 +375,23 @@ async function applyUnifiedFromLocal(){
 }
 function togglePause(){ paused=!paused; document.getElementById('pause').textContent=paused?'再開':'一時停止'; }
 function doReset(){
-  // CSV 読込済みの現在の幾何から “棚中心基準” で再配置
+  // CSV 読込済み幾何から再配置：返し中央・棚高さに揃える
   const ha=model.anchors.HOIST_ANCHOR;
   xt=ha.x; vt=0; psi=0; wF=0; vFx=0; vFy=0;
   xF=model.anchors.FRAME_COM.x; yF=model.anchors.FRAME_COM.y;
 
   buildArmsAndSurfaces();
-  const midX = shelves.reduce((s,seg)=> s + (seg.p0.x+seg.p1.x)/2, 0) / shelves.length;
-  const midY = shelves.reduce((s,seg)=> s + (seg.p0.y+seg.p1.y)/2, 0) / shelves.length;
-  cx = midX; cy = midY - (model.cab.H/2 - model.cab.notch);
+  const lipXs = lips.map(seg=>seg.p0.x);
+  const lipL = Math.min(...lipXs), lipR = Math.max(...lipXs);
+  const shelfY = shelves.reduce((s,seg)=> s + ((seg.p0.y+seg.p1.y)/2), 0) / shelves.length;
+
+  cx = (lipL + lipR)/2;
+  cy = shelfY - (model.cab.H/2 - model.cab.notch);
   phi=0; omega=0; cvx=0; cvy=0;
 
   solveChainPosition(6);
   t=0; paused=false; document.getElementById('pause').textContent='一時停止';
-  setStatus('リセットしました');
+  setStatus('リセットしました（返し中央・棚高さに再整列）');
 }
 document.getElementById('loadUnified').onclick=loadUnifiedFromRepo;
 document.getElementById('applyUnified').onclick=applyUnifiedFromLocal;
