@@ -114,17 +114,50 @@ function buildArmsAndSurfaces(){
     const shelfStart={x:p.x,y:p.y};
     step(-sgn*prm.shelf_in, 0);
     const shelfEnd={x:p.x,y:p.y};
-    shelves.push({p0:shelfStart,p1:shelfEnd, n:ey, t:ex});
+    shelves.push({p0:shelfStart,p1:shelfEnd, n:ey, t:ex}); // 棚
 
     const lipStart={x:p.x,y:p.y}; // 返し基点（水平棚の端）
     step(0, prm.lip_up);
     const lipEnd={x:p.x,y:p.y};
     const n_out={x:sgn*ex.x, y:sgn*ex.y};
-    lips.push({p0:lipStart,p1:lipEnd, n:n_out, t:ey});
+    lips.push({p0:lipStart,p1:lipEnd, n:n_out, t:ey}); // 返し
 
     if(side==='L') armPolys.L=poly; else armPolys.R=poly;
   }
   build('L'); build('R');
+}
+
+// ===== CAB 初期配置：棚区間の内側に両端が入るよう cx を決める =====
+function placeCabOnShelves(){
+  buildArmsAndSurfaces();
+
+  // 棚高さ（水平の平均）で cy を確定
+  const shelfY = shelves.reduce((s,seg)=>s+((seg.p0.y+seg.p1.y)/2),0)/shelves.length;
+  cy = shelfY - (model.cab.H/2 - model.cab.notch);
+
+  // 左右棚を x 中点で判別
+  const arr = shelves.map(seg=>({seg, midX:(seg.p0.x+seg.p1.x)/2})).sort((a,b)=>a.midX-b.midX);
+  const sL = arr[0].seg, sR = arr[arr.length-1].seg;
+
+  // 各棚の水平区間（min/max x）
+  const Lmin = Math.min(sL.p0.x, sL.p1.x), Lmax = Math.max(sL.p0.x, sL.p1.x);
+  const Rmin = Math.min(sR.p0.x, sR.p1.x), Rmax = Math.max(sR.p0.x, sR.p1.x);
+
+  // CAB 左右端が棚区間に入るための cx の許容範囲
+  const W2 = model.cab.W/2 - 0.5; // 0.5mm 余裕
+  const lo = Math.max(Lmin + W2, Rmin - W2);
+  const hi = Math.min(Lmax + W2, Rmax - W2);
+
+  if (hi >= lo) {
+    cx = (lo + hi)/2;
+  } else {
+    // 交差が無い（棚が短い/離れている等）→両棚中点の平均へ
+    const mid = ((Lmin+Lmax)/2 + (Rmin+Rmax)/2)/2;
+    cx = mid;
+  }
+
+  // 静止姿勢から
+  phi=0; omega=0; cvx=0; cvy=0;
 }
 
 // ===== CSV 1枚読み込み =====
@@ -158,28 +191,17 @@ function parseUnifiedCSV(text){
   model.cab.cg.x = get('CAB重心_Gcab_X座標',7);
   model.cab.cg.y = get('CAB重心_Gcab_Y座標',-1800);
 
-  // 状態初期化（返しxで中央寄せ、棚高さでy決定）
+  // 状態初期化：台車・天秤
   xt=HA.x; vt=0; xF=frameCOM.x; yF=frameCOM.y; psi=0; wF=0; vFx=0; vFy=0;
-  phi=0; omega=0; cvx=0; cvy=0;
 
-  buildArmsAndSurfaces();
+  // ★ CAB を棚の内側に必ず掛ける
+  placeCabOnShelves();
 
-  // ★ ここが肝：左右の返し基点 x（lips[].p0.x）で中央寄せ
-  const lipXs = lips.map(seg=>seg.p0.x);
-  const lipL = Math.min(...lipXs), lipR = Math.max(...lipXs);
-  const midX = (lipL + lipR)/2;
-
-  // 棚高さは水平方向なので平均でよい
-  const shelfY = shelves.reduce((s,seg)=> s + ((seg.p0.y+seg.p1.y)/2), 0) / shelves.length;
-
-  cx = midX;
-  cy = shelfY - (model.cab.H/2 - model.cab.notch);
-
-  // チェーン長拘束を満たす微調整（天秤位置を微修正）
+  // チェーン長拘束（天秤のみ微調整）
   solveChainPosition(6);
 
   t=0;
-  setStatus('要素数値情報.csv を読込みました（初期：返し中央・棚高さに正確整列）');
+  setStatus('要素数値情報.csv を読込みました（初期：左右棚の内側に掛かるよう整列）');
 }
 
 // ===== チェーン拘束（剛体長） =====
@@ -241,7 +263,6 @@ function step(){
 
   // ===== CAB × 棚/返し（多点接触） =====
   const Icab = I_cab();
-  const ex=rot(psi,{x:1,y:0}), ey=rot(psi,{x:0,y:1});
   const cph=Math.cos(phi), sph=Math.sin(phi);
   const yTop = model.cab.H/2 - model.cab.notch;
 
@@ -375,23 +396,16 @@ async function applyUnifiedFromLocal(){
 }
 function togglePause(){ paused=!paused; document.getElementById('pause').textContent=paused?'再開':'一時停止'; }
 function doReset(){
-  // CSV 読込済み幾何から再配置：返し中央・棚高さに揃える
+  // CSV 読込済み幾何から再配置：左右棚の内側に掛かるよう必ず整列
   const ha=model.anchors.HOIST_ANCHOR;
   xt=ha.x; vt=0; psi=0; wF=0; vFx=0; vFy=0;
   xF=model.anchors.FRAME_COM.x; yF=model.anchors.FRAME_COM.y;
 
-  buildArmsAndSurfaces();
-  const lipXs = lips.map(seg=>seg.p0.x);
-  const lipL = Math.min(...lipXs), lipR = Math.max(...lipXs);
-  const shelfY = shelves.reduce((s,seg)=> s + ((seg.p0.y+seg.p1.y)/2), 0) / shelves.length;
-
-  cx = (lipL + lipR)/2;
-  cy = shelfY - (model.cab.H/2 - model.cab.notch);
-  phi=0; omega=0; cvx=0; cvy=0;
-
+  placeCabOnShelves();
   solveChainPosition(6);
+
   t=0; paused=false; document.getElementById('pause').textContent='一時停止';
-  setStatus('リセットしました（返し中央・棚高さに再整列）');
+  setStatus('リセットしました（左右棚内に確実に掛かる初期姿）');
 }
 document.getElementById('loadUnified').onclick=loadUnifiedFromRepo;
 document.getElementById('applyUnified').onclick=applyUnifiedFromLocal;
