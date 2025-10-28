@@ -202,7 +202,8 @@ function placeCabOnShelves(){
 
   // 左右棚を x 中点で判別
   const arr = shelves.map(seg=>({seg, midX:(seg.p0.x+seg.p1.x)/2})).sort((a,b)=>a.midX-b.midX);
-  const sL = arr[0].seg, sR = arr[arr.length-1].seg;
+  const sL = arr[0].seg;
+  const sR = arr[arr.length-1].seg;
 
   // 各棚の水平範囲
   const Lmin = Math.min(sL.p0.x, sL.p1.x), Lmax = Math.max(sL.p0.x, sL.p1.x);
